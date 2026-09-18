@@ -5,6 +5,7 @@ https://huggingface.co/api/models/Systran/faster-whisper-small/revision/536b0662
 """
 from __future__ import annotations
 
+import argparse
 import hashlib
 import os
 import re
@@ -144,3 +145,15 @@ def ensure_snapshot(cache_dir: Path, revision: str, *, allow_download: bool,
             expected_git_blob=None if "sha256" in metadata else metadata["git_blob"],
         )
     return snapshot
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--cache-dir', type=Path, required=True)
+    parser.add_argument('--download', action='store_true', help='Permit public model downloads')
+    args = parser.parse_args()
+    print(ensure_snapshot(args.cache_dir, PINNED_REVISION, allow_download=args.download))
+
+
+if __name__ == '__main__':
+    main()
