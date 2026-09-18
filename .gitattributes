@@ -5,3 +5,6 @@
 *.yml text eol=lf
 *.yaml text eol=lf
 *.ps1 text eol=crlf
+*.service text eol=lf
+*.timer text eol=lf
+*.env.example text eol=lf

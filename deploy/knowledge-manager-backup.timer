@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily knowledge backup
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+RandomizedDelaySec=300
+Unit=knowledge-manager-backup.service
+
+[Install]
+WantedBy=timers.target
