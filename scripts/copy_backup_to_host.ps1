@@ -24,7 +24,7 @@ function Write-Status([string]$Destination, [hashtable]$Values) {
 }
 
 function Assert-NoReparsePath([string]$Path) {
-    $current = Get-Item -LiteralPath $Path
+    $current = Get-Item -Force -LiteralPath $Path
     while ($current) {
         if (($current.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
             throw "Reparse points are not allowed in managed paths: $($current.FullName)"
@@ -34,7 +34,7 @@ function Assert-NoReparsePath([string]$Path) {
 }
 
 function Assert-RegularPath([string]$Path, [bool]$Directory) {
-    $item = Get-Item -LiteralPath $Path
+    $item = Get-Item -Force -LiteralPath $Path
     if ($Directory -ne $item.PSIsContainer) { throw "Unexpected path type: $Path" }
     Assert-NoReparsePath $item.FullName
     return $item
@@ -206,7 +206,7 @@ try {
     }
     if (Test-Path -LiteralPath $final) {
         Assert-RegularPath $final $false | Out-Null
-        $existing = Get-Item -LiteralPath $final
+        $existing = Get-Item -Force -LiteralPath $final
         $existingHash = Get-Sha256 $final
         if ($existing.Length -ne $size -or $existingHash -ne $sha256) { throw 'Existing final archive does not match the exporter manifest.' }
         Write-Status $destination @{ result = 'reused'; archive = $name; size = $size; sha256 = $sha256; guestAddress = $script:ResolvedGuest }
@@ -218,7 +218,7 @@ try {
     }
     $partial = Join-Path $destination ('.' + $name + '.' + [Guid]::NewGuid().ToString('N') + '.partial')
     Invoke-SshBytes @('get', $name) $partial $size | Out-Null
-    $received = Get-Item -LiteralPath $partial
+    $received = Get-Item -Force -LiteralPath $partial
     if ($received.Length -ne $size) { throw 'Downloaded archive size does not match the manifest.' }
     $receivedHash = Get-Sha256 $partial
     if ($receivedHash -ne $sha256) { throw 'Downloaded archive hash does not match the manifest.' }

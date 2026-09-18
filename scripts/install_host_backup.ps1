@@ -23,7 +23,7 @@ if ([IO.Path]::GetPathRoot([IO.Path]::GetFullPath($Destination)) -ne 'D:\') {
 }
 
 function Assert-SourceFile([string]$Path) {
-    $item = Get-Item -LiteralPath $Path
+    $item = Get-Item -Force -LiteralPath $Path
     if ($item.PSIsContainer) {
         throw "Expected a regular source file: $Path"
     }
@@ -33,7 +33,7 @@ function Assert-SourceFile([string]$Path) {
 
 function Assert-PrivateKeyAcl([string]$Path) {
     $allowed = @('S-1-5-18', 'S-1-5-32-544')
-    foreach ($target in @((Get-Item -LiteralPath $Path), (Get-Item -LiteralPath (Split-Path -Parent $Path)))) {
+    foreach ($target in @((Get-Item -Force -LiteralPath $Path), (Get-Item -Force -LiteralPath (Split-Path -Parent $Path)))) {
         $acl = Get-Acl -LiteralPath $target.FullName
         try {
             $ownerSid = (New-Object Security.Principal.NTAccount($acl.Owner)).Translate([Security.Principal.SecurityIdentifier]).Value
@@ -53,7 +53,7 @@ function Assert-PrivateKeyAcl([string]$Path) {
 }
 
 function Assert-NoReparsePath([string]$Path) {
-    $current = Get-Item -LiteralPath $Path
+    $current = Get-Item -Force -LiteralPath $Path
     while ($current) {
         if (($current.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
             throw "Reparse points are not allowed in managed paths: $($current.FullName)"
@@ -64,7 +64,7 @@ function Assert-NoReparsePath([string]$Path) {
 
 function Initialize-ManagedDirectory([string]$Path, [string]$MarkerName) {
     if (Test-Path -LiteralPath $Path) {
-        $item = Get-Item -LiteralPath $Path
+        $item = Get-Item -Force -LiteralPath $Path
         if (-not $item.PSIsContainer) {
             throw "Managed path is not a regular directory: $Path"
         }
@@ -79,7 +79,7 @@ function Initialize-ManagedDirectory([string]$Path, [string]$MarkerName) {
         New-Item -ItemType Directory -Path $Path | Out-Null
         [IO.File]::WriteAllText((Join-Path $Path $MarkerName), "managed`r`n", (New-Object Text.UTF8Encoding($false)))
     }
-    return (Get-Item -LiteralPath $Path).FullName
+    return (Get-Item -Force -LiteralPath $Path).FullName
 }
 
 function Protect-ManagedPath([string]$Path) {
@@ -110,7 +110,7 @@ foreach ($candidate in @(
     @{ Path = $ConfigDirectory; Marker = '.knowledge-manager-backup-config' }
 )) {
     if (Test-Path -LiteralPath $candidate.Path) {
-        $item = Get-Item -LiteralPath $candidate.Path
+        $item = Get-Item -Force -LiteralPath $candidate.Path
         if (-not $item.PSIsContainer) { throw "Managed path is not a directory: $($candidate.Path)" }
         Assert-NoReparsePath $item.FullName
         if (-not (Test-Path -LiteralPath (Join-Path $candidate.Path $candidate.Marker) -PathType Leaf)) {

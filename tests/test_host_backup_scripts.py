@@ -101,6 +101,33 @@ def test_binary_copy_and_idempotent_reuse(tmp_path):
     assert json.loads((destination / "status.json").read_text())["result"] == "reused"
 
 
+def test_binary_copy_beneath_hidden_ancestor(tmp_path):
+    hidden_parent = tmp_path / "hidden-parent"
+    hidden_parent.mkdir()
+    marked_hidden = subprocess.run(
+        ["attrib.exe", "+h", str(hidden_parent)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert marked_hidden.returncode == 0, marked_hidden.stderr
+
+    try:
+        result, destination, name, digest, payload = run_copy(hidden_parent)
+
+        assert result.returncode == 0, result.stderr
+        assert (destination / name).read_bytes() == payload
+        assert json.loads((destination / "status.json").read_text())["sha256"] == digest
+    finally:
+        restored = subprocess.run(
+            ["attrib.exe", "-h", str(hidden_parent)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert restored.returncode == 0, restored.stderr
+
+
 def test_existing_mismatching_final_is_never_overwritten(tmp_path):
     result, destination, name, _, _ = run_copy(tmp_path)
     assert result.returncode == 0, result.stderr
