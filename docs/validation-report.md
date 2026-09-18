@@ -22,7 +22,7 @@
 | OCR | 未完成 | 当前系统未发现 Tesseract 程序；仅安装 Python 包不等于 OCR 可用 |
 | 真实 AI 摘要、分类 | 未执行 | 没有配置实际模型供应商及密钥；试点 AI 关闭 |
 | Docker | 未执行 | Docker 引擎未启动 |
-| 目标主机部署 | 未执行 | 目标可响应 ping；最新探测 192.168.3.189:22 返回连接被拒绝，等待目标端 sshd 服务和监听状态 |
+| 目标主机部署 | 未执行 | 已改用用户指定的 Tailscale 地址 `100.64.186.105`；SSH 握手成功、主机在线，Administrator 登录尚需公钥授权 |
 | GitHub 访问 | 用户补授权后 Git 可读取 | 已取回原有 main 的初始提交；代码交付记录见 Git 提交及分支 |
 | GitHub 写入 | 已交付 | GitHub 连接器已恢复，通过 Git 数据接口提交全部 80 个文件至 `validation/knowledge-inbox`；草稿 PR #1 已创建 |
 

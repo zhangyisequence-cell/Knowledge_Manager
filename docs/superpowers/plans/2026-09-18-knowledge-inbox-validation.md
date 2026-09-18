@@ -9,7 +9,7 @@
 ## Constraints
 
 - Target repository: https://github.com/zhangyisequence-cell/Knowledge_Manager
-- Intended host: Windows, 192.168.3.189, SSH user Administrator; TCP 22 currently refuses connections.
+- Intended host: Windows WIN-HRJ0PR9785B, Tailscale 100.64.186.105 (LAN 192.168.3.189), SSH user Administrator; SSH reachable, management public key authorization pending.
 - No API keys, credentials, real knowledge vault, downloaded models or runtime databases in Git.
 - No unauthenticated public exposure. Initial service binds only 127.0.0.1.
 - No claim of real AI quality based on mocks or fallback summaries.

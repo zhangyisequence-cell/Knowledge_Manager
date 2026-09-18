@@ -73,7 +73,17 @@ powershell -File scripts/make_video_sample.ps1
 
 ## 旧笔记本与外网访问
 
-预定目标：Windows，`192.168.3.189`，SSH 用户 `Administrator`。本次只在当前工作电脑验证，尚未安装到目标机器。若端口仍未连通，可在目标电脑运行只读检查脚本 `scripts/diagnose-host.ps1`，核对 sshd 服务、监听端口和防火墙规则。
+部署目标：Windows，主机名 `WIN-HRJ0PR9785B`，SSH 用户 `Administrator`。优先使用用户指定的 Tailscale 地址 `100.64.186.105` 管理，原局域网地址为 `192.168.3.189`。Tailscale 和 SSH 握手已连通，目前等待在目标机添加管理公钥；尚未完成登录或部署。
+
+当前管理电脑使用专用密钥 `%USERPROFILE%\.ssh\knowledge_manager_ed25519`，私钥不进入项目或 Git。Windows OpenSSH 默认将管理员账户的公钥放在 `%ProgramData%\ssh\administrators_authorized_keys`；目标机只需添加公钥，并按 OpenSSH 要求限制该文件权限。登录命令：
+
+```powershell
+ssh -i "$env:USERPROFILE\.ssh\knowledge_manager_ed25519" -o IdentitiesOnly=yes Administrator@100.64.186.105
+```
+
+首次授权也可完全在管理电脑进行：运行 `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/authorize-host.ps1`，在 SSH 提示中输入目标机 Administrator 的 Windows 密码。脚本使用本机已生成的专用公钥，在远端保留已有授权并备份文件，添加公钥、设置文件权限，最后验证密钥登录。密码由 SSH 直接读取，不写入脚本或日志；无需跨电脑粘贴。前提是目标 SSH 主机密钥已经在管理电脑确认，且目标使用 Windows OpenSSH 默认管理员公钥路径。
+
+若 SSH 端口未连通，可在目标电脑运行只读检查脚本 `scripts/diagnose-host.ps1`，核对 sshd 服务、监听端口和防火墙规则。
 
 上游接口缺少完整身份认证，本项目入口因此固定监听 `127.0.0.1`。局域网和外网访问的下一步应是受限的私人组网入口（例如 Tailscale Serve 配合设备访问规则），或具备身份认证的反向代理。不要直接做公网端口映射。
 
