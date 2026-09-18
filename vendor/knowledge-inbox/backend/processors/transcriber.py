@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 from functools import lru_cache
 from pathlib import Path
 
@@ -15,6 +16,7 @@ def _load_model(model: str, threads: int, local_only: bool):
 
 
 class Transcriber:
+    _decoding_options = {"vad_filter": True, "beam_size": 5}
     _media_suffixes = {
         ".aac",
         ".aif",
@@ -50,6 +52,28 @@ class Transcriber:
             return None
         return await asyncio.to_thread(self._transcribe, path)
 
+    @classmethod
+    def provenance(cls) -> dict:
+        """Describe this configured local transcription path, not its accuracy."""
+        reference = os.getenv("KNOWLEDGE_WHISPER_MODEL", "").strip() or "small"
+        snapshot = Path(reference)
+        result = {
+            "transcription_review_required": True,
+            "transcription_engine": "faster-whisper",
+            "transcription_model": reference,
+            "transcription_model_reference": reference,
+            "transcription_decoding": {**cls._decoding_options, "language": "auto"},
+            "transcription_runtime": {"device": "cpu", "compute_type": "int8"},
+        }
+        # A local alias/path need not identify a revision. Record a revision only
+        # when the configured reference is a named Hugging Face snapshot.
+        repository = snapshot.parent.parent.name
+        if (snapshot.parent.name == "snapshots" and repository.startswith("models--")
+                and re.fullmatch(r"[0-9a-f]{40}", snapshot.name)):
+            result["transcription_model"] = repository.removeprefix("models--").replace("--", "/")
+            result["transcription_model_revision"] = snapshot.name
+        return result
+
     @staticmethod
     def _model():
         snapshot = os.getenv("KNOWLEDGE_WHISPER_MODEL", "").strip()
@@ -68,5 +92,5 @@ class Transcriber:
         model = cls._model()
         if model is None:
             return None
-        segments, _ = model.transcribe(str(path), vad_filter=True, beam_size=5)
+        segments, _ = model.transcribe(str(path), **cls._decoding_options)
         return "\n".join(segment.text.strip() for segment in segments if segment.text.strip())

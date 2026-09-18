@@ -40,7 +40,10 @@ class ContentPipeline:
         if item.transcript:
             item.transcript = clean_text(item.transcript)
         elif item.media_files:
+            transcription_provenance = self.transcriber.provenance()
             item.transcript = await self.transcriber.transcribe_first(item.media_files)
+            if item.transcript:
+                item.metadata.update(transcription_provenance)
         if (
             self._has_audio_media(item.media_files)
             and not item.transcript

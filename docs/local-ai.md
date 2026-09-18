@@ -157,6 +157,16 @@ vmstat 1 10
 
 Before retaining application AI as enabled, run an actual Knowledge Manager long-document ingestion with unique facts at the beginning, middle, and end. Verify all chunks were processed, JSON fields passed validation, evidence quotes match the saved source character-for-character, source offsets and URL appear in Obsidian, and the job does not silently become a rule summary. Capture elapsed time, peak RSS, swap growth, and any failed jobs.
 
+`scripts/check_local_ai_ingestion.py` exercises the actual HTTP queue with a synthetic Chinese document containing three complete 3000-character chunks plus a final partial chunk. Run it on the server with permission to read the deployed configuration, SQLite database and saved note:
+
+```bash
+sudo /opt/knowledge-manager/current/.venv/bin/python \
+  /opt/knowledge-manager/current/scripts/check_local_ai_ingestion.py \
+  --output-dir /var/tmp/knowledge-local-ai-acceptance --timeout 1800
+```
+
+It refuses to submit unless health reports actual AI enabled. It requires full continuous coverage, distinct facts quoted from the beginning/middle/end, exact quote offsets, matching model/completion markers in the saved note, and complete source preservation in both SQLite and Markdown. It records the input, job, item, note and result locally. A passing synthetic fixture test is not a passing model run; the actual run and resource measurements are still required.
+
 The application currently enforces a minimum request timeout of 180 seconds and also accepts a larger `ai.timeout_seconds` in its server `config.yaml`. If a real 3000-character chunk takes longer than 180 seconds on this CPU, measure the observed upper bound and increase `ai.timeout_seconds` in the deployed server configuration before acceptance. Do not shorten the input, claim success from a smaller sample, or assume 180 seconds is sufficient without measurement.
 
 Only after those checks pass should the application be configured to use:

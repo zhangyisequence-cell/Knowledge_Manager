@@ -70,6 +70,17 @@ class ObsidianWriter:
             "analysis_model": item.metadata.get("model"),
             "analysis_complete": item.metadata.get("complete"),
         }
+        generated_transcript = (
+            bool(item.transcript) and item.metadata.get("transcription_review_required") is True
+        )
+        if generated_transcript:
+            for key in (
+                "transcription_review_required", "transcription_engine", "transcription_model",
+                "transcription_model_reference", "transcription_model_revision",
+                "transcription_decoding", "transcription_runtime",
+            ):
+                if key in item.metadata:
+                    frontmatter[key] = item.metadata[key]
         yaml_text = yaml.safe_dump(
             frontmatter, allow_unicode=True, sort_keys=False, default_flow_style=False
         ).strip()
@@ -85,7 +96,10 @@ class ObsidianWriter:
             if rejected_evidence_count
             else ""
         )
-        transcript = f"\n\n## 转写文本\n\n{item.transcript}" if item.transcript else ""
+        transcript_notice = "> 自动转写，未经人工复核\n\n" if generated_transcript else ""
+        transcript = (
+            f"\n\n## 转写文本\n\n{transcript_notice}{item.transcript}" if item.transcript else ""
+        )
         description = (
             f"\n\n## 媒体理解\n\n{item.metadata['media_description']}"
             if item.metadata.get("media_description")
