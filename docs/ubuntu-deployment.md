@@ -22,9 +22,23 @@
 
 硬件实查：Intel i5-3320M，宿主机约 12GB 内存；VM 当前固定 4 GiB 内存、2 vCPU。根盘约 124 GiB、剩余约 112 GiB。本地大模型必须按该资源实测，不能直接使用默认 7B 配置。宿主机交流电休眠当前为 `never`，这是观察到的既有状态，并非本次部署修改。服务器上的语音模型元数据三个文件已经校验，主模型正在服务器直接断点续传，尚未完成或发布；不能把管理电脑上的完整模型误写成服务器已就绪。
 
-当前部署源码为本地提交 `2a76c089e3c1c773b291f129911d4ddd000b5f93`、远端提交 `5cafe99bb70706a7e14fe37a16a07a263e2ff45a`，两者 Git tree 均为 `36762501b1edee5e33d006bf6d08f256eb4da330`；对应的两次最新 CI 均成功。服务器 release 为 `/opt/knowledge-manager/releases/2a76c08`，上传归档 `/var/tmp/knowledge-manager-minimal.tar.gz` 的 SHA-256 `e5097de29df4b569ed3f22ad2a30e21e61ac9ddb02d6bdc407d90e0aa8ea41f3` 已核验。安装器加入 `--no-install-recommends` 后，模拟结果由 205 个包降至 161 个包，下载量由 180 MB 降至 124 MB，新增磁盘占用由 623 MB 降至 409 MB；所需解析器仍保留。临时 systemd 单元 `knowledge-manager-install` 仍在执行安装，当前 apt 正在下载 `libllvm20`，应用尚未部署完成，也没有应用健康检查结果。
+部署源码本地提交 `2a76c089e3c1c773b291f129911d4ddd000b5f93`、远端提交 `5cafe99bb70706a7e14fe37a16a07a263e2ff45a` 的 Git tree 均为 `36762501b1edee5e33d006bf6d08f256eb4da330`；服务器首次成功激活的应用 release 为 `/opt/knowledge-manager/releases/2a76c08`。该版本于 2026-09-19 03:45:17 安装成功，`/api/health` 返回 `status=ok`、`storage_configured=true`、AI 关闭；`knowledge-manager.service` 与备份 timer 均为 enabled/active，微信 service 为 disabled/inactive。后续当前版本已更新为下述 `879926c`。
 
-模型下载器已查明镜像 HTTP 403 的原因：镜像拒绝 Python 默认 User-Agent，项目专用 User-Agent 可用。相关下载器测试现为 11 项并已通过。新脚本 `scripts/check_server_ingestion.py` 可检查文本、TXT、Markdown、DOCX、XLSX、PDF 和旧 DOC 七类真实入库结果，但尚未在正式服务器运行。
+七类真实入库脚本已在服务器全部通过：中文文本、Markdown、TXT、含表格 DOCX、多工作表且保留公式标记的 XLSX、英文 PDF 和旧 DOC；原文、原件及附件哈希均已核验。公开的 SQLite `about.html` 也已真实抓取入库，已核对笔记中保留的来源 URL 与正文，整份笔记为 5,193 字节。首次正式备份 `knowledge-20260918T194804-800684b8.tar.gz` 已创建并验证 23 个文件，独立恢复到 `/var/tmp/km-restore-20260919-0348` 后 SQLite `integrity_check` 为 `ok`，包含 7 个条目和 7 个成功任务。
+
+新 release 激活后的正式备份 `knowledge-20260918T200601-bda375a6.tar.gz` 于 04:06:02 成功完成并验证 67 个文件；恢复到 `/var/tmp/km-restore-879926c-0406` 返回退出码 0，独立 SQLite `integrity_check` 为 `ok`，包含 23 个条目和 23 个成功任务。恢复后主应用和备份 timer active、微信 inactive，健康接口为 `status=ok`、`storage_configured=true`、AI 关闭。备份重启应用后立即执行的一次 curl 曾因服务尚未完成启动而连接被拒绝，待启动完成后健康恢复正常；这不是持续故障。第二物理备份介质仍未配置。
+
+中文混合 PDF 的真实 OCR 已正确识别扫描页中的金额、李明、日期和“归档”，空白页也正确处理；但同一 PDF 的中文可复制文字层因 Type0 `/UniGB-UTF16-H` 且没有 `ToUnicode`，通过 pypdf 提取时出现乱码。代码已改用 PyMuPDF。修复源码本地提交为 `879926ca190444dd49d91eb3a1b20342e132ef2e`、远端提交为 `6aa0cb1f9882c37dfb6630aa23d9a0465dc48f5e`，共同 tree 为 `f654051995799804d0c7984af5dc9f58adb60190`；新归档 SHA-256 为 `747327e5eab3bdd971a6edc2d10bdb391031d36e956353b878624ff6b881af50`，CI run `35388693783` 的 Windows 和 Ubuntu job 均已独立查询为成功。release `/opt/knowledge-manager/releases/879926c` 已于 03:59:49 正式激活，安装更新单元结果为 success/inactive，`current` 指向该 release；激活前备份为 `knowledge-20260918T195944-2962f908.tar.gz`。
+
+新 release 的七类真实入库已再次全部通过，证据为 `/var/tmp/km-acceptance-879926c/server-ingestion-results.json`。中文混合 PDF 的独立实际 Tesseract 检查 7 项均为 true、退出码为 0，证据为 `/var/tmp/km-acceptance-879926c/ocr/chinese-ocr-result.json`。随后经 HTTP 上传的任务 `e29b8170bcc8466aaf6289ccae7fdae6` 成功；`verify_artifacts` 核对可复制中文、12800、李明、“知识归档”、空白页标签、规则模式和标签、服务端原件以及 Vault 附件 SHA 均为 true，日期在去空格后匹配。产物包含两个附件：原 PDF 和扫描页图片。完整证据为 `/var/tmp/km-acceptance-879926c/ocr/server-ocr-ingestion.json`。
+
+模型下载器已查明镜像 HTTP 403 的原因：镜像拒绝 Python 默认 User-Agent，项目专用 User-Agent 可用。下载器测试现为 13 项并已通过，新增覆盖完整 `.part` 无网络发布及损坏的完整 `.part` 重新下载；配套 Qwen 下载测试 4 项，合计 17 项。完整统一测试总数仍为 317。`scripts/check_server_ingestion.py` 已用于上述七类正式服务器入库验收。
+
+本地 AI 部署脚本已提交（本地 `22078ba`，远端 `bc923550b872e27b34f91b01dd1af4fb7663d98d`，对应 CI 成功），固定使用 llama.cpp CPU 源码和 Qwen 1.5B。旧 CPU 上的临时单元 `knowledge-manager-llm-build` 正在通过 apt 安装编译依赖。一次性单元 `knowledge-manager-llm-model-download` 已创建为串行队列，只有 Whisper 下载单元结束且完整校验通过后才开始固定 Qwen 下载；当前尚未传输 Qwen 数据，也没有实际 AI 推理结果。03:59 时 Whisper 主模型临时文件为 287,186,944 / 483,546,902 字节，仍未下载完成。目标 CPU 上 CTranslate2 报告支持 `float32`、`int16`、`int8` 和 `int8_float32`；这只证明 CPU 后端兼容能力查询成功，不等同于真实转写验收。
+
+只读网络调查看到宿主 Intel 6205 Wi-Fi 当前仅协商约 13–14 Mbps、信号约 60%，到本地网关延迟抖动明显；来宾 Hyper-V 虚拟链路报告 10 Gbps，未见错误、丢包或队列限速。这些证据指向宿主无线链路可能是主要限制因素，但不作唯一因果断言。已询问是否可接宿主千兆有线网，尚未得到答复，未修改网络配置。
+
+临时预览复用既有 SSH，仅在管理电脑 `127.0.0.1:18787` 绑定并转发到来宾 `127.0.0.1:8787`；实测健康接口 `status=ok`、`storage_configured=true`、AI 关闭，页面返回 HTTP 200、27,287 字节。没有新增持久端口或防火墙规则，这与仍待授权的持久 SSH `2222` 入口不同。该临时预览不代表手机或外网客户端访问已完成，也不代表 Obsidian 同步已完成。
 
 Windows 局域网 `192.168.3.189:22` 已通过固定的 Tailscale 主机公钥验证，是同一台宿主机。拟议的专用 Ubuntu SSH 转发脚本 `scripts/expose-ubuntu-ssh.ps1` 尚未执行；新增持久端口和防火墙规则被自动审批拒绝，等待用户明确授权。现有 SSH 中转仍可用于部署。
 
@@ -44,10 +58,10 @@ python scripts/build_ubuntu_seed.py --public-key "$env:USERPROFILE/.ssh/knowledg
 
 ## 后续验证顺序
 
-1. 等待当前 apt 下载和临时单元 `knowledge-manager-install` 完成，检查最终状态与完整日志；若失败，按激活脚本的安全回滚状态排障，不能并发重启旧安装任务或直接手工启动旧代码。
-2. 安装完成后核对 `knowledge-manager.service`、备份 timer、当前 release 链接和本机 `/api/health`；确认微信 service 在无凭据时保持关闭。
-3. 在服务器运行尚未执行的 `scripts/check_server_ingestion.py` 七类真实入库验收和中文 OCR 检查，核对 Vault 原件、Markdown、SQLite 和服务账户权限；随后做服务重启和虚拟机重启验收。
-4. 手动创建并校验正式备份，在独立目录恢复并核对清单、原件及数据库；配置第二备份介质。
-5. 等待服务器主模型续传完成，按固定大小和 SHA-256 校验后再发布到模型缓存；在这台无 AVX2 的实际 CPU 上验收中文媒体转写性能与兼容性。AI 和微信凭据齐全后再分别启用并做端到端验收。
+1. 完成主应用和虚拟机重启验收，确认 DHCP 地址变化后仍能通过固定主机密钥安全管理，且应用、备份 timer 和微信关闭状态按预期恢复。
+2. 为两次已验证备份配置第二物理介质，并定期重复独立恢复演练。
+3. 等待 Whisper 主模型续传完成，按固定大小和 SHA-256 校验后发布，在这台无 AVX2 的实际 CPU 上验收中文媒体转写性能与兼容性。
+4. 等串行队列实际完成 Qwen 1.5B 下载，并完成 llama.cpp 编译后，先做真实 CPU 推理质量和资源验收再启用 AI。微信凭据齐全后再启用并做端到端验收。
+5. 另行设计并验证手机或外网客户端的受控入口与 Obsidian 同步；临时本机 SSH 预览不替代这些工作。
 
 微信入口待用户实际公众号/微信客服账号配置。Obsidian Vault 是服务器上的文件夹；完整客户端访问方案和备份介质仍需部署后验证，不能把微信页面入口视为已完成 Obsidian 同步。
