@@ -6,9 +6,11 @@ import re
 import shutil
 import threading
 import time
+from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote
+from zipfile import ZipFile
 
 import pytest
 import yaml
@@ -17,6 +19,7 @@ from backend.config import AIConfig, AppConfig, get_config
 from backend.main import app
 from docx import Document
 from fastapi.testclient import TestClient
+from openpyxl import Workbook
 from reportlab.pdfgen import canvas
 
 
@@ -102,6 +105,78 @@ def test_word_table_data_is_not_silently_lost(client):
     assert "季度预算" in content and "12800" in content
 
 
+def excel_bytes(blank=False, oversized=False):
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "季度预算"
+    if oversized:
+        sheet.cell(1048576, 16384, "远端单元格")
+    elif not blank:
+        sheet.append(["项目", "金额", "日期", "确认"])
+        sheet.append(["资料采购", 12800.5, date(2026, 9, 18), False])
+        sheet.append(["免费材料", 0, None, True])
+        sheet.append(["合计", "=SUM(B2:B3)"])
+        workbook.create_sheet("说明").append(["来源|核对\n不能丢失"])
+    output = io.BytesIO()
+    workbook.save(output)
+    workbook.close()
+    return output.getvalue()
+
+
+@pytest.mark.parametrize("suffix", ["xlsx", "xlsm"])
+def test_excel_sheets_values_formula_and_original_reach_vault(client, suffix):
+    api, config = client
+    original = excel_bytes()
+    note = note_from(api, api.post("/api/upload", files={"file": (f"预算.{suffix}", original)}))
+    text = note.read_text("utf-8")
+    for expected in ("季度预算", "说明", "12800.5", "2026-09-18", "FALSE", "TRUE",
+                     "SUM(B2:B3)", "未缓存", "来源\\|核对<br>不能丢失"):
+        assert expected in text
+    assert "| 3 | 免费材料 | 0 |" in text
+    metadata = yaml.safe_load(text.split("---", 2)[1])
+    assert metadata["source"] == "spreadsheet"
+    assert next(config.vault_dir.rglob(f"*.{suffix}")).read_bytes() == original
+
+
+@pytest.mark.parametrize("case", ["blank", "corrupt", "oversized"])
+def test_excel_invalid_input_fails_without_note(client, case):
+    api, config = client
+    payload = b"not an Excel file" if case == "corrupt" else excel_bytes(
+        blank=case == "blank", oversized=case == "oversized"
+    )
+    job = completed(api, api.post("/api/upload", files={"file": ("invalid.xlsx", payload)}))
+    assert job["status"] == "failed"
+    assert "Excel" in job["error"]
+    assert not list(config.vault_dir.rglob("*.md"))
+
+
+def test_excel_legacy_xls_preserves_sheets_dates_and_attachment(client):
+    api, config = client
+    original = (Path(__file__).parent / "fixtures" / "legacy.xls").read_bytes()
+    note = note_from(api, api.post("/api/upload", files={"file": ("旧版.xls", original)}))
+    text = note.read_text("utf-8")
+    for expected in ("预算", "说明", "资料采购", "12800.5", "2026-09-18", "FALSE"):
+        assert expected in text
+    assert next(config.vault_dir.rglob("*.xls")).read_bytes() == original
+
+
+def test_excel_cached_formula_result_is_labelled_and_formula_preserved(client):
+    api, _ = client
+    output = io.BytesIO()
+    with ZipFile(io.BytesIO(excel_bytes())) as source, ZipFile(output, "w") as target:
+        for entry in source.infolist():
+            data = source.read(entry.filename)
+            if entry.filename == "xl/worksheets/sheet1.xml":
+                assert b"<f>SUM(B2:B3)</f><v></v>" in data
+                data = data.replace(b"<f>SUM(B2:B3)</f><v></v>",
+                                    b"<f>SUM(B2:B3)</f><v>12800.5</v>")
+            target.writestr(entry, data)
+    note = note_from(api, api.post("/api/upload", files={"file": ("cached.xlsx", output.getvalue())}))
+    text = note.read_text("utf-8")
+    assert "公式：=SUM(B2:B3)" in text
+    assert "缓存结果（未重新计算）：12800.5" in text
+
+
 def pdf_bytes(blank=False):
     output = io.BytesIO()
     pdf = canvas.Canvas(output)
@@ -162,9 +237,9 @@ def test_long_attachment_name_keeps_its_extension(client):
     assert assets[0].read_bytes() == original
 
 
-def test_unsupported_spreadsheet_fails_without_creating_note(client):
+def test_unsupported_file_type_fails_without_creating_note(client):
     api, config = client
-    job = completed(api, api.post("/api/upload", files={"file": ("sample.xlsx", b"unsupported") }))
+    job = completed(api, api.post("/api/upload", files={"file": ("sample.unknown", b"unsupported") }))
     assert job["status"] == "failed"
     assert "不支持" in job["error"]
     assert not list(config.vault_dir.rglob("*.md"))

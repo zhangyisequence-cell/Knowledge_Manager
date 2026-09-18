@@ -1,6 +1,6 @@
 # Knowledge Manager
 
-微信收集 → 本地解析整理 → Obsidian 知识库的试点工程。
+微信收发 → Ubuntu 服务器解析整理 → 本地 Obsidian 知识库。
 
 当前阶段：验证 Knowledge Inbox 作为资料处理底座。**微信聊天入口、外网服务和真实 AI 摘要尚未验收，不能当作已完成的整套知识库。**
 
@@ -9,10 +9,11 @@
 ## 已有内容
 
 - 完整上游源码快照，固定版本及许可证见 [UPSTREAM.md](UPSTREAM.md)。
-- 中文文本、TXT/Markdown、Word 正文和表格、文字型 PDF、网页入库验证。
+- 中文文本、TXT/Markdown、Word 正文和表格、文字型 PDF、网页和 Excel 入库验证。
+- Excel 支持 XLSX/XLSM/XLS：保留工作表与行列位置、文本、日期、数值、布尔值；现代格式记录普通/数组公式与缓存标记，原件随库保留。
 - 三处修补：Word 表格提取；空白 PDF 不再假成功；原始附件复制进 Vault，使用相对链接。
 - 仅本机访问的试用服务、独立试用 Vault、复现脚本、依赖版本锁定。
-- Windows / Linux CI 配置。云端 CI 只有推送后实际运行，配置存在不代表已经通过。
+- Windows / Linux CI：既有试点已在两种环境通过，后续提交的结果以 PR 检查为准。
 
 详细结果与局限见 [验证报告](docs/validation-report.md)。
 
@@ -73,17 +74,11 @@ powershell -File scripts/make_video_sample.ps1
 
 ## 旧笔记本与外网访问
 
-部署目标：Windows，主机名 `WIN-HRJ0PR9785B`，SSH 用户 `Administrator`。优先使用用户指定的 Tailscale 地址 `100.64.186.105` 管理，原局域网地址为 `192.168.3.189`。Tailscale 和 SSH 握手已连通，目前等待在目标机添加管理公钥；尚未完成登录或部署。
+最终部署目标已由用户确认改为 **Hyper-V 中的 Ubuntu**。Windows 宿主机 `100.64.186.105`（Tailscale）可用专用 SSH 密钥管理，虚拟机名 `Ubuntu`，4 GiB 内存、1 vCPU。
 
-当前管理电脑使用专用密钥 `%USERPROFILE%\.ssh\knowledge_manager_ed25519`，私钥不进入项目或 Git。Windows OpenSSH 默认将管理员账户的公钥放在 `%ProgramData%\ssh\administrators_authorized_keys`；目标机只需添加公钥，并按 OpenSSH 要求限制该文件权限。登录命令：
+2026-09-18 实查发现虚拟机停在 UEFI 启动错误，系统盘为 RAW、无分区。已保留原磁盘，修正 Linux 安全启动模板，在确认空盘后启动 Ubuntu 24.04.4 自动安装。**安装完成、服务器部署与重启验收尚需后续实查，不能把宿主机登录成功视为服务已部署。**
 
-```powershell
-ssh -i "$env:USERPROFILE\.ssh\knowledge_manager_ed25519" -o IdentitiesOnly=yes Administrator@100.64.186.105
-```
-
-首次授权也可完全在管理电脑进行：运行 `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/authorize-host.ps1`，在 SSH 提示中输入目标机 Administrator 的 Windows 密码。脚本使用本机已生成的专用公钥，在远端保留已有授权并备份文件，添加公钥、设置文件权限，最后验证密钥登录。密码由 SSH 直接读取，不写入脚本或日志；无需跨电脑粘贴。前提是目标 SSH 主机密钥已经在管理电脑确认，且目标使用 Windows OpenSSH 默认管理员公钥路径。
-
-若 SSH 端口未连通，可在目标电脑运行只读检查脚本 `scripts/diagnose-host.ps1`，核对 sshd 服务、监听端口和防火墙规则。
+部署进度和安装脚本说明见 [Ubuntu 部署记录](docs/ubuntu-deployment.md)。微信入口按用户选择采用公众号/微信客服方向，优先核实可接收文件的微信客服；尚未配置真实账号。
 
 上游接口缺少完整身份认证，本项目入口因此固定监听 `127.0.0.1`。局域网和外网访问的下一步应是受限的私人组网入口（例如 Tailscale Serve 配合设备访问规则），或具备身份认证的反向代理。不要直接做公网端口映射。
 
@@ -102,7 +97,13 @@ Obsidian 是读取本地文件夹的客户端。手机/外出电脑使用完整 
 
 代码已交付至本仓库的 `validation/knowledge-inbox` 分支，见 [试点草稿 PR #1](https://github.com/zhangyisequence-cell/Knowledge_Manager/pull/1)。
 
-1. 打通目标机器远程登录，将已验证的试点部署到旧笔记本。
+1. 完成 Ubuntu 虚拟机安装、登录和服务器部署验收。
 2. 用真实公众号文章、复杂文档、中文视频和选定 AI 模型验收。
 3. 确定微信提交入口，再接入资料处理队列。
 4. 配置私人外网访问、Obsidian 同步、开机自启和备份。
+
+## Excel 解析边界
+
+每个工作表最多 50,000 行、256 列，整个工作簿累计扫描最多 250,000 个单元格，现代文件解压总大小上限 64 MiB；超限会明确失败，不截断后冒充完整入库。空白、损坏的表格同样报告失败。
+
+提取的是单元格内容，数字保留数值，不承诺 Excel 显示格式、图表、绘图和版式还原。公式不重新计算，不执行宏；无缓存标记“未缓存，未计算”，缓存可能过期，必须回原文件核对。XLS 只能读取已存储的计算值；XLSX/XLSM 另外记录公式表达式或数据表运算参数。

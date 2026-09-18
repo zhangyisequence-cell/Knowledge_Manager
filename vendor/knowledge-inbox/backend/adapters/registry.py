@@ -36,6 +36,7 @@ def build_registry(config: AppConfig) -> AdapterRegistry:
     from backend.adapters.pdf import PDFAdapter
     from backend.adapters.podcast import PodcastAdapter
     from backend.adapters.remote_media import RemoteMediaAdapter
+    from backend.adapters.spreadsheet import SpreadsheetAdapter
     from backend.adapters.twitter import TwitterAdapter
     from backend.adapters.vimeo import VimeoAdapter
     from backend.adapters.webpage import WebAdapter
@@ -56,6 +57,8 @@ def build_registry(config: AppConfig) -> AdapterRegistry:
         WebAdapter,
     ):
         registry.register_url(adapter_type(config))
-    for adapter_type in (PDFAdapter, ImageAdapter, LocalFileAdapter, WeChatVideoAdapter):
+    for adapter_type in (
+        PDFAdapter, ImageAdapter, SpreadsheetAdapter, LocalFileAdapter, WeChatVideoAdapter
+    ):
         registry.register_file(adapter_type(config))
     return registry

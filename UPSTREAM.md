@@ -16,4 +16,8 @@
 - `backend/adapters/pdf.py`：无有效正文时报告失败。
 - `backend/storage/obsidian.py`：原始附件复制进 Vault，使用相对链接。
 
+- `backend/adapters/spreadsheet.py`：新增 Excel XLSX/XLSM/XLS 解析。
+- `backend/adapters/registry.py`、`backend/api/routes.py`：注册并展示表格来源。
+- `pyproject.toml`：加入 openpyxl 与 xlrd 依赖。
+
 上述修改由本项目进行，非原作者发布版本；其余导入文件保留上游来源。

@@ -27,6 +27,7 @@ SOURCE_TYPES = [
     "pdf",
     "image",
     "local_file",
+    "spreadsheet",
     "wechat_video",
     "telegram",
     "text",
