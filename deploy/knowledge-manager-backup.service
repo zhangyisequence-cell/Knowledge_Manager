@@ -5,7 +5,7 @@ After=network-online.target
 [Service]
 Type=oneshot
 UMask=0077
-ExecStart=/opt/knowledge-manager/current/.venv/bin/python /opt/knowledge-manager/current/scripts/server_backup.py create
+ExecStart=/opt/knowledge-manager/current/.venv/bin/python /opt/knowledge-manager/current/scripts/server_backup.py create --companion-service knowledge-manager-wechat.service
 TimeoutStartSec=infinity
 TimeoutStopSec=240
 # Let Python handle SIGTERM and complete service recovery before killing children.

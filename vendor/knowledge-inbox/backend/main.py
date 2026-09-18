@@ -13,6 +13,7 @@ from backend.processors.ai import AIProcessor
 from backend.processors.linker import KnowledgeLinker
 from backend.processors.pipeline import ContentPipeline
 from backend.storage import Database, ObsidianWriter
+from backend.wechat.runtime import running_worker
 from backend.worker import IngestionWorker
 
 
@@ -33,8 +34,12 @@ async def lifespan(app: FastAPI):
     app.state.database = database
     app.state.worker = worker
     await worker.start()
-    yield
-    await worker.stop()
+    try:
+        async with running_worker(config, worker) as wechat_worker:
+            app.state.wechat_worker = wechat_worker
+            yield
+    finally:
+        await worker.stop()
 
 
 app = FastAPI(

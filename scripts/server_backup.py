@@ -161,29 +161,44 @@ def restore_backup(archive: Path, destination: Path) -> Path:
 
 def backup_service(args):
     """Quiesce writers and restore their prior state even on a normal cancellation."""
-    state = subprocess.check_output(
-        ["systemctl", "show", args.service, "--property=LoadState", "--value"], text=True
-    ).strip()
-    if state != "loaded":
-        raise RuntimeError("Cannot identify the application service; backup aborted")
-    state = subprocess.run(
-        ["systemctl", "is-active", args.service], text=True, capture_output=True, check=False
-    )
-    was_running = state.stdout.strip() not in {"inactive", "failed"}
+    services = list(dict.fromkeys([args.service, *getattr(args, 'companion_service', [])]))
+    running = {}
+    # Validate the entire writer set before interrupting any service.
+    for service in services:
+        state = subprocess.check_output(
+            ["systemctl", "show", service, "--property=LoadState", "--value"], text=True
+        ).strip()
+        if state != "loaded":
+            raise RuntimeError("Cannot identify a writer service; backup aborted")
+        state = subprocess.run(
+            ["systemctl", "is-active", service], text=True, capture_output=True, check=False
+        )
+        running[service] = state.stdout.strip() not in {"inactive", "failed"}
 
     def cancel(signum, frame):
         raise SystemExit(128 + signum)
 
     previous = signal.signal(signal.SIGTERM, cancel)
+    attempted = set()
     try:
-        subprocess.run(["systemctl", "stop", args.service], check=True)
+        # Stop ingress first so no new callbacks race the application shutdown.
+        for service in reversed(services):
+            attempted.add(service)
+            subprocess.run(["systemctl", "stop", service], check=True)
         print(create_backup(args.data_root, args.backup_root, args.config_root))
     finally:
         # A repeated cancellation must not interrupt the service recovery itself.
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
         try:
-            if was_running:
-                subprocess.run(["systemctl", "start", args.service], check=True)
+            errors = []
+            for service in services:
+                if service in attempted and running[service]:
+                    try:
+                        subprocess.run(["systemctl", "start", service], check=True)
+                    except subprocess.CalledProcessError as error:
+                        errors.append(error)
+            if errors:
+                raise RuntimeError('Failed to restore one or more writer services') from errors[0]
         finally:
             signal.signal(signal.SIGTERM, previous)
 
@@ -196,6 +211,8 @@ def main():
     create.add_argument("--config-root", type=Path, default=Path("/etc/knowledge-manager"))
     create.add_argument("--backup-root", type=Path, default=Path("/var/backups/knowledge-manager"))
     create.add_argument("--service", default="knowledge-manager.service")
+    create.add_argument("--companion-service", action="append", default=[],
+                        help="Additional database writers; repeat for each service")
     verify = sub.add_parser("verify")
     verify.add_argument("archive", type=Path)
     restore = sub.add_parser("restore")
@@ -209,7 +226,8 @@ def main():
     else:
         import fcntl
 
-        if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_.@-]*", args.service):
+        if any(not re.fullmatch(r"[A-Za-z][A-Za-z0-9_.@-]*", unit)
+               for unit in [args.service, *args.companion_service]):
             parser.error("Invalid service name")
         args.backup_root.mkdir(parents=True, exist_ok=True, mode=0o700)
         with (args.backup_root / ".backup.lock").open("a") as lock:

@@ -34,17 +34,6 @@ cd "$release"
 python3.12 -m venv .venv
 .venv/bin/python -m pip install --disable-pip-version-check -r requirements.lock
 .venv/bin/python -m pip check
-install -m 0644 deploy/knowledge-manager.service /etc/systemd/system/knowledge-manager.service
-install -m 0644 deploy/knowledge-manager-backup.service /etc/systemd/system/knowledge-manager-backup.service
-install -m 0644 deploy/knowledge-manager-backup.timer /etc/systemd/system/knowledge-manager-backup.timer
-temporary_link="/opt/knowledge-manager/.current-$$"
-trap 'test ! -L "$temporary_link" || rm -- "$temporary_link"' EXIT HUP INT TERM
-ln -s "$release" "$temporary_link"
-mv -Tf "$temporary_link" /opt/knowledge-manager/current
-systemd-analyze verify /etc/systemd/system/knowledge-manager.service /etc/systemd/system/knowledge-manager-backup.service /etc/systemd/system/knowledge-manager-backup.timer
-systemctl daemon-reload
-systemctl enable knowledge-manager.service knowledge-manager-backup.timer
-systemctl restart knowledge-manager.service
-systemctl start knowledge-manager-backup.timer
+.venv/bin/python scripts/activate_release.py "$release"
 systemctl --no-pager status knowledge-manager.service
 echo 'Service started. Verify /api/health, actual ingestion, and backup restore before declaring ready.'

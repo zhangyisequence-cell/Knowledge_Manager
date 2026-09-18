@@ -1,0 +1,29 @@
+[Unit]
+Description=Authenticated WeChat callback ingress
+Wants=network-online.target
+After=network-online.target knowledge-manager.service
+ConditionPathExists=/etc/knowledge-manager/wechat.enabled
+
+[Service]
+Type=simple
+User=knowledge-manager
+Group=knowledge-manager
+WorkingDirectory=/opt/knowledge-manager/current
+EnvironmentFile=/etc/knowledge-manager/server.env
+Environment=PYTHONUNBUFFERED=1
+Environment=HOME=/var/lib/knowledge-manager
+Environment=PYTHONPATH=/opt/knowledge-manager/current/vendor/knowledge-inbox
+ExecStart=/opt/knowledge-manager/current/.venv/bin/python -m uvicorn backend.wechat.runtime:create_public_app --factory --host 127.0.0.1 --port 8766 --no-access-log
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=60
+UMask=0077
+StateDirectory=knowledge-manager
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/srv/knowledge-manager/data
+
+[Install]
+WantedBy=multi-user.target

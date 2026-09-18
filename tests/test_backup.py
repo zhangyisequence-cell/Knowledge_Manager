@@ -121,3 +121,52 @@ def test_cancelled_backup_restores_previous_service_state(monkeypatch, tmp_path,
     assert stopped.value.code == 128 + signal.SIGTERM
     assert calls == ['is-active', 'stop'] + (['start'] if initial_state == 'active' else [])
     assert signal.getsignal(signal.SIGTERM) == old_handler
+
+
+@pytest.mark.parametrize('callback_state', ['active', 'inactive'])
+def test_backup_quiesces_all_writers_and_restores_only_running_services(monkeypatch, tmp_path, callback_state):
+    from scripts import server_backup
+
+    app, callback = 'knowledge-manager.service', 'knowledge-manager-wechat.service'
+    states = {app: 'active', callback: callback_state}
+    calls = []
+    monkeypatch.setattr(server_backup.subprocess, 'check_output', lambda *a, **k: 'loaded\n')
+
+    def systemctl(command, **kwargs):
+        action, unit = command[1:3]
+        calls.append((action, unit))
+        if action == 'is-active':
+            return SimpleNamespace(stdout=states[unit] + '\n')
+        states[unit] = 'inactive' if action == 'stop' else 'active'
+        return SimpleNamespace(stdout='')
+
+    def snapshot(*args):
+        assert states == {app: 'inactive', callback: 'inactive'}
+        raise RuntimeError('synthetic archive failure')
+
+    monkeypatch.setattr(server_backup.subprocess, 'run', systemctl)
+    monkeypatch.setattr(server_backup, 'create_backup', snapshot)
+    args = SimpleNamespace(service=app, companion_service=[callback], data_root=tmp_path,
+                           backup_root=tmp_path, config_root=tmp_path)
+    with pytest.raises(RuntimeError, match='synthetic archive failure'):
+        server_backup.backup_service(args)
+    assert states == {app: 'active', callback: callback_state}
+    assert [call for call in calls if call[0] == 'stop'] == [('stop', callback), ('stop', app)]
+    assert [call for call in calls if call[0] == 'start'] == [('start', app)] + (
+        [('start', callback)] if callback_state == 'active' else [])
+
+
+def test_unknown_companion_aborts_before_stopping_any_writer(monkeypatch, tmp_path):
+    from scripts import server_backup
+
+    calls = []
+    monkeypatch.setattr(server_backup.subprocess, 'check_output',
+                        lambda command, **k: 'not-found\n' if command[2] == 'missing.service' else 'loaded\n')
+    monkeypatch.setattr(server_backup.subprocess, 'run',
+                        lambda command, **k: calls.append(command) or SimpleNamespace(stdout='active\n'))
+    monkeypatch.setattr(server_backup, 'create_backup', lambda *a: pytest.fail('must not archive'))
+    args = SimpleNamespace(service='knowledge-manager.service', companion_service=['missing.service'],
+                           data_root=tmp_path, backup_root=tmp_path, config_root=tmp_path)
+    with pytest.raises(RuntimeError, match='service'):
+        server_backup.backup_service(args)
+    assert all(command[1] not in {'stop', 'start'} for command in calls)

@@ -66,6 +66,9 @@ class ObsidianWriter:
             "tags": item.tags,
             "importance": item.importance_score,
             "content_id": item.id,
+            "analysis_mode": item.metadata.get("analysis_mode"),
+            "analysis_model": item.metadata.get("model"),
+            "analysis_complete": item.metadata.get("complete"),
         }
         yaml_text = yaml.safe_dump(
             frontmatter, allow_unicode=True, sort_keys=False, default_flow_style=False
@@ -74,6 +77,14 @@ class ObsidianWriter:
         key_data = ObsidianWriter._bullets(item.metadata.get("key_data", []))
         actions = ObsidianWriter._bullets(item.metadata.get("actions", []))
         related = ObsidianWriter._bullets([f"[[{note}]]" for note in item.related_notes])
+        analysis_label = item.metadata.get("analysis_label") or "未标记"
+        evidence = ObsidianWriter._evidence(item.metadata.get("evidence", []))
+        rejected_evidence_count = item.metadata.get("rejected_evidence_count", 0)
+        evidence_notice = (
+            f"\n\n> 已剔除 {rejected_evidence_count} 条无法在原文逐字核验的模型引用。"
+            if rejected_evidence_count
+            else ""
+        )
         transcript = f"\n\n## 转写文本\n\n{item.transcript}" if item.transcript else ""
         description = (
             f"\n\n## 媒体理解\n\n{item.metadata['media_description']}"
@@ -96,6 +107,8 @@ class ObsidianWriter:
 
 {item.summary or "暂无"}
 
+> 分析方式：{analysis_label}
+
 # 核心观点
 
 {core_points or "1. 暂无"}
@@ -103,6 +116,10 @@ class ObsidianWriter:
 # 关键数据
 
 {key_data or "- 原文未提供"}
+
+# 来源证据
+
+{evidence or "- 未提供可核验原文引用"}{evidence_notice}
 
 # 我的关联
 
@@ -138,3 +155,25 @@ class ObsidianWriter:
                 continue
             lines.append(f"- [{path.name}]({href})")
         return f"\n\n## 原始附件\n\n{chr(10).join(lines)}" if lines else ""
+
+    @staticmethod
+    def _evidence(values: object) -> str:
+        if not isinstance(values, list):
+            return ""
+        lines = []
+        for value in values:
+            if not isinstance(value, dict):
+                continue
+            claim = str(value.get("claim") or "证据")
+            quote_text = str(value.get("quote") or "")
+            chunk_id = str(value.get("chunk_id") or "")
+            start = value.get("start")
+            end = value.get("end")
+            if not quote_text or not isinstance(start, int) or not isinstance(end, int):
+                continue
+            location = f"{chunk_id}，字符 {start}-{end}"
+            source_url = value.get("source_url")
+            if source_url:
+                location += f"，[来源]({source_url})"
+            lines.append(f"- {claim}：“{quote_text}” （{location}）")
+        return "\n".join(lines)

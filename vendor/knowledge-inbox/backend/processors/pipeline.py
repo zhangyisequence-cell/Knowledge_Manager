@@ -53,19 +53,7 @@ class ContentPipeline:
             raise RuntimeError("未生成转写文本；请安装 media 依赖并确认 ffmpeg 可用")
 
         analysis = await self.ai.analyze(item)
-        item.summary = str(analysis.get("summary") or "")
-        item.category = str(analysis.get("category") or "待分类")
-        item.tags = self._strings(analysis.get("tags"))
-        item.keywords = self._strings(analysis.get("keywords"))
-        item.importance_score = max(0, min(1, float(analysis.get("importance_score", 0.5))))
-        item.metadata["core_points"] = self._strings(analysis.get("core_points"))
-        item.metadata["key_data"] = self._strings(analysis.get("key_data"))
-        item.metadata["actions"] = self._strings(analysis.get("actions"))
-        description = str(
-            analysis.get("media_description") or analysis.get("image_description") or ""
-        ).strip()
-        if description:
-            item.metadata["media_description"] = description
+        self._apply_analysis(item, analysis)
         if (
             item.source_type == "image"
             and not item.raw_content
@@ -85,6 +73,34 @@ class ContentPipeline:
         for path in videos_to_delete:
             await asyncio.to_thread(path.unlink, missing_ok=True)
         return item, note_path
+
+    @staticmethod
+    def _apply_analysis(item: ContentItem, analysis: dict[str, Any]) -> None:
+        item.summary = str(analysis.get("summary") or "")
+        item.category = str(analysis.get("category") or "待分类")
+        item.tags = ContentPipeline._strings(analysis.get("tags"))
+        item.keywords = ContentPipeline._strings(analysis.get("keywords"))
+        item.importance_score = max(0, min(1, float(analysis.get("importance_score", 0.5))))
+        item.metadata["core_points"] = ContentPipeline._strings(analysis.get("core_points"))
+        item.metadata["key_data"] = ContentPipeline._strings(analysis.get("key_data"))
+        item.metadata["actions"] = ContentPipeline._strings(analysis.get("actions"))
+        item.metadata["evidence"] = analysis.get("evidence", [])
+        item.metadata["rejected_evidence_count"] = analysis.get(
+            "rejected_evidence_count", 0
+        )
+        for field in (
+            "analysis_mode",
+            "analysis_label",
+            "model",
+            "coverage",
+            "complete",
+        ):
+            item.metadata[field] = analysis.get(field)
+        description = str(
+            analysis.get("media_description") or analysis.get("image_description") or ""
+        ).strip()
+        if description:
+            item.metadata["media_description"] = description
 
     async def _extract(self, job: Job) -> ContentItem:
         title = job.payload.get("title")

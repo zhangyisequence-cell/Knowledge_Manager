@@ -1,7 +1,17 @@
 from __future__ import annotations
 
 import asyncio
+import os
+from functools import lru_cache
 from pathlib import Path
+
+
+@lru_cache(maxsize=1)
+def _load_model(model: str, threads: int, local_only: bool):
+    from faster_whisper import WhisperModel
+
+    return WhisperModel(model, device="cpu", compute_type="int8", cpu_threads=threads,
+                        local_files_only=local_only)
 
 
 class Transcriber:
@@ -42,12 +52,14 @@ class Transcriber:
 
     @staticmethod
     def _model():
-        try:
-            from faster_whisper import WhisperModel
-        except Exception:
+        snapshot = os.getenv("KNOWLEDGE_WHISPER_MODEL", "").strip()
+        if snapshot and not Path(snapshot).is_dir():
             return None
         try:
-            return WhisperModel("small", device="auto", compute_type="int8")
+            threads = int(os.getenv("KNOWLEDGE_WHISPER_THREADS", "2"))
+            if threads < 1:
+                return None
+            return _load_model(snapshot or "small", threads, bool(snapshot))
         except Exception:
             return None
 

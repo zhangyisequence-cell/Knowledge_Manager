@@ -6,30 +6,34 @@ import time
 from pathlib import Path
 
 from faster_whisper import WhisperModel
-from huggingface_hub import hf_hub_download
+from hf_snapshot_download import PINNED_REVISION, ensure_snapshot
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def evaluate_checks(text):
+    return {
+        'amount_12800': any(amount in text for amount in
+                            ('12800', '12,800', '一万二千八百', '一万两千八百')),
+        'owner': '李明' in text,
+        'weekly_review': any(day in text for day in ('周五', '週五'))
+                         and any(review in text for review in ('复盘', '復盤')),
+        'deadline': any(deadline in text for deadline in ('下周三', '下週三')),
+        'archive_action': any(action in text for action in ('归档', '歸檔')),
+    }
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--download', action='store_true', help='Allow downloading the public model')
-    parser.add_argument('--revision', default='536b0662742c02347bc0e980a01041f333bce120',
+    parser.add_argument('--revision', default=PINNED_REVISION,
                         help='Pinned Systran/faster-whisper-small snapshot')
     parser.add_argument('--threads', type=int, default=2)
     parser.add_argument('--sample-dir', type=Path, default=ROOT / 'runtime' / 'samples')
     parser.add_argument('--cache-dir', type=Path, default=ROOT / 'runtime' / 'model-cache' / 'hub')
     args = parser.parse_args()
     start = time.monotonic()
-    # These are the four published files required by this fixed CTranslate2 model.
-    # Fetching each exact file also works with mirrors lacking Hub tree pagination.
-    files = [hf_hub_download('Systran/faster-whisper-small', filename, revision=args.revision,
-                             cache_dir=str(args.cache_dir), local_files_only=not args.download,
-                             token=False)
-             for filename in ('config.json', 'model.bin', 'tokenizer.json', 'vocabulary.txt')]
-    snapshot = Path(files[0]).parent
-    if any(Path(path).parent != snapshot for path in files):
-        raise RuntimeError('Model files do not belong to one snapshot')
+    snapshot = ensure_snapshot(args.cache_dir, args.revision, allow_download=args.download)
     model = WhisperModel(str(snapshot), device='cpu', compute_type='int8',
                          cpu_threads=args.threads, local_files_only=True)
     results = []
@@ -38,13 +42,7 @@ def main():
         segments, info = model.transcribe(str(path), language='zh', vad_filter=True, beam_size=5)
         text = ''.join(segment.text.strip() for segment in segments)
         # No initial prompt or expected-answer hint is supplied to the model.
-        checks = {
-            'amount_12800': any(amount in text for amount in ('12800', '12,800', '一万二千八百', '一万两千八百')),
-            'owner': '李明' in text,
-            'weekly_review': '周五' in text and '复盘' in text,
-            'deadline': '下周三' in text,
-            'archive_action': '归档' in text,
-        }
+        checks = evaluate_checks(text)
         results.append({'file': path.name, 'sha256': hashlib.sha256(path.read_bytes()).hexdigest(),
                         'duration': info.duration, 'transcript': text, 'checks': checks})
     result = {'model': 'Systran/faster-whisper-small', 'revision': args.revision,
