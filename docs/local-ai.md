@@ -25,6 +25,47 @@ sudo bash scripts/build_local_llm.sh --build
 ldd /opt/knowledge-manager/llama/b29c606e28a01b1bc8c1351026a0fa6e616bf6c4/bin/llama-server
 ```
 
+### Transfer a pinned source archive when Git transport fails
+
+The observed Ubuntu attempt failed during `git clone` with curl error 56 / early EOF,
+before CMake ran. An alternative is the official exact-commit [GitHub codeload archive](https://codeload.github.com/ggml-org/llama.cpp/tar.gz/b29c606e28a01b1bc8c1351026a0fa6e616bf6c4).
+The copy downloaded and inspected on 2026-09-19 has:
+
+- filename: `llama.cpp-b29c606e28a01b1bc8c1351026a0fa6e616bf6c4.tar.gz`
+- compressed size: `37,437,459` bytes
+- SHA-256: `03fb04316eb32a7b7347004a79a8dd60531c02f5a064d853fed3b53828951723`
+- root directory: `llama.cpp-b29c606e28a01b1bc8c1351026a0fa6e616bf6c4`
+- 3,963 regular-file/directory entries, 171,812,273 uncompressed file bytes, no links.
+
+The top-level, CPU and server CMake files and `common/arg.cpp` were compared
+byte-for-byte with the official raw files at the same commit. `.gitmodules` is empty.
+This records source provenance; it is not a successful build or inference claim.
+
+Download this exact URL on a computer with a working connection, verify the size
+and SHA-256 above, and transfer the archive through the existing authenticated
+management connection. Do not substitute a tag archive, floating ref or repacked
+tarball, and do not change the pin merely to accept a failed download. The local
+acceptance copy is under ignored `runtime/llama-source/`; archives do not belong in Git.
+For example, after transferring the verified file into `/tmp` on Ubuntu:
+
+```bash
+cd /opt/knowledge-manager/current
+sudo bash scripts/build_local_llm.sh --build --source-archive \
+  /tmp/llama.cpp-b29c606e28a01b1bc8c1351026a0fa6e616bf6c4.tar.gz
+```
+
+This option bypasses Git acquisition only; the existing Ubuntu package installation
+step still runs. `prepare_llama_source.py` copies the supplied file into a private
+snapshot while hashing, checks the fixed size/digest before extraction, and rejects
+unexpected roots, path traversal, links, devices, duplicates and excessive expanded
+size. It extracts only into the new private build directory; it never overwrites an
+existing destination. A failed build leaves the supplied archive intact for another
+attempt. No CPU/UI/model settings are changed.
+
+Codeload archives have no `.git` directory, so upstream `--version` may omit Git
+revision metadata. The root-owned build marker records the exact source commit and
+archive SHA-256; retain this marker together with the actual compiler/runtime evidence.
+
 The build explicitly enables SSE4.2, AVX1, and F16C. It disables AVX2, FMA, BMI2, CPU multi-variant builds, CUDA, HIP, MUSA, Vulkan, SYCL, OpenCL, and RPC. A successful build is not proof that the binary runs on this CPU: `--version` must complete without `Illegal instruction`.
 
 Both `LLAMA_BUILD_UI` and `LLAMA_USE_PREBUILT_UI` are disabled: only the local API is needed. This avoids the upstream build fetching a floating prebuilt web interface even when the source commit is pinned.

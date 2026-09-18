@@ -7,8 +7,11 @@ INSTALL_ROOT="/opt/knowledge-manager/llama"
 INSTALL_DIR="${INSTALL_ROOT}/${LLAMA_COMMIT}"
 MARKER="${INSTALL_DIR}/.knowledge-manager-llama-build"
 
-if [[ "${1:-}" != "--build" || $# -ne 1 ]]; then
-    echo "Usage: sudo $0 --build" >&2
+SOURCE_ARCHIVE=""
+if [[ "${1:-}" == "--build" && $# -eq 3 && "${2:-}" == "--source-archive" && -n "${3:-}" ]]; then
+    SOURCE_ARCHIVE="$3"
+elif [[ "${1:-}" != "--build" || $# -ne 1 ]]; then
+    echo "Usage: sudo bash $0 --build [--source-archive PINNED_TAR_GZ]" >&2
     echo "This script does nothing unless --build is supplied explicitly." >&2
     exit 2
 fi
@@ -56,12 +59,18 @@ cleanup() {
 }
 trap cleanup EXIT
 
-git clone --depth 1 --branch "${LLAMA_TAG}" \
-    https://github.com/ggml-org/llama.cpp.git "${work_dir}/llama.cpp"
-actual_commit="$(git -C "${work_dir}/llama.cpp" rev-parse HEAD)"
-if [[ "${actual_commit}" != "${LLAMA_COMMIT}" ]]; then
-    echo "llama.cpp revision mismatch: expected ${LLAMA_COMMIT}, got ${actual_commit}" >&2
-    exit 1
+if [[ -n "${SOURCE_ARCHIVE}" ]]; then
+    script_dir="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+    /usr/bin/python3 -I "${script_dir}/prepare_llama_source.py" \
+        --archive "${SOURCE_ARCHIVE}" --destination "${work_dir}/llama.cpp"
+else
+    git clone --depth 1 --branch "${LLAMA_TAG}" \
+        https://github.com/ggml-org/llama.cpp.git "${work_dir}/llama.cpp"
+    actual_commit="$(git -C "${work_dir}/llama.cpp" rev-parse HEAD)"
+    if [[ "${actual_commit}" != "${LLAMA_COMMIT}" ]]; then
+        echo "llama.cpp revision mismatch: expected ${LLAMA_COMMIT}, got ${actual_commit}" >&2
+        exit 1
+    fi
 fi
 
 cmake -S "${work_dir}/llama.cpp" -B "${work_dir}/llama.cpp/build" \
@@ -97,6 +106,9 @@ install -m 0755 "${work_dir}/llama.cpp/build/bin/llama-server" \
 {
     echo "tag=${LLAMA_TAG}"
     echo "commit=${LLAMA_COMMIT}"
+    if [[ -n "${SOURCE_ARCHIVE}" ]]; then
+        echo "source_archive_sha256=03fb04316eb32a7b7347004a79a8dd60531c02f5a064d853fed3b53828951723"
+    fi
     echo "cpu=AVX1,F16C,SSE4.2;no-AVX2,no-FMA,no-BMI2"
 } > "${staging}/.knowledge-manager-llama-build"
 chmod 0644 "${staging}/.knowledge-manager-llama-build"
