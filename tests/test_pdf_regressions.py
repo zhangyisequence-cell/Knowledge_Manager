@@ -4,6 +4,7 @@ import builtins
 import io
 from pathlib import Path
 
+import pymupdf
 import pytesseract
 import pytest
 from backend.adapters.pdf import PDFAdapter
@@ -37,6 +38,59 @@ def adapter(tmp_path):
 
 
 LONG_TEXT = "Native text and source must survive. " * 8
+
+
+def make_chinese_pdf(path):
+    expected = "可复制文字页：保存原始资料与来源。"
+    with pymupdf.open() as document:
+        page = document.new_page()
+        page.insert_textbox(pymupdf.Rect(40, 40, 550, 760), expected + "\n" + expected,
+                            fontname="china-s", fontsize=18)
+        document.new_page()
+        document.save(path)
+    return expected
+
+
+def test_chinese_predefined_cid_font_preserves_real_text_layer(tmp_path):
+    path = tmp_path / "chinese-native.pdf"
+    expected = make_chinese_pdf(path)
+
+    result = adapter(tmp_path)._fetch_sync(path)
+
+    assert result.raw_content.count(expected) == 2
+    assert result.metadata["ocr_pages"] == []
+    assert result.metadata["blank_pages"] == [2]
+    assert result.media_files == [str(path)]
+
+
+def test_missing_cid_decoder_fails_instead_of_saving_garbled_chinese(tmp_path, monkeypatch):
+    path = tmp_path / "chinese-native.pdf"
+    make_chinese_pdf(path)
+    real_import = builtins.__import__
+
+    def unavailable_import(name, *args, **kwargs):
+        if name == "pymupdf":
+            raise ImportError("optional dependency unavailable")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", unavailable_import)
+    with pytest.raises(RuntimeError, match="第 1 页 CID.*PyMuPDF"):
+        adapter(tmp_path)._fetch_sync(path)
+
+
+def test_base_text_pdf_still_works_without_optional_cid_decoder(tmp_path, monkeypatch):
+    path = make_pdf(tmp_path / "latin.pdf", [("text", "Native source."), ("blank", "")])
+    real_import = builtins.__import__
+
+    def unavailable_import(name, *args, **kwargs):
+        if name == "pymupdf":
+            raise ImportError("optional dependency unavailable")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", unavailable_import)
+    result = adapter(tmp_path)._fetch_sync(path)
+    assert "Native source." in result.raw_content
+    assert result.metadata["blank_pages"] == [2]
 
 
 def test_mixed_pdf_preserves_every_page_in_order(tmp_path, monkeypatch):

@@ -20,7 +20,7 @@ class PDFAdapter(SourceAdapter):
 
     def _fetch_sync(self, path: Path, title: object = None) -> FetchedContent:
         reader = PdfReader(path)
-        pages = [(page.extract_text() or "").strip() for page in reader.pages]
+        pages = self._native_text(path, reader)
         ocr_pages: list[int] = []
         blank_pages: list[int] = []
         candidates: list[int] = []
@@ -65,6 +65,34 @@ class PDFAdapter(SourceAdapter):
                 "blank_pages": sorted(blank_pages),
             },
         )
+
+    @staticmethod
+    def _native_text(path: Path, reader: PdfReader) -> list[str]:
+        # Predefined CID CMaps (for example UniGB-UTF16-H without ToUnicode)
+        # can produce nonempty mojibake in pypdf. MuPDF resolves these mappings;
+        # use its real text layer, without routing copyable Chinese through OCR.
+        try:
+            import pymupdf
+        except ImportError as error:
+            # Keep the base installation's existing text-only PDF support.
+            # Missing CID Unicode maps must not turn this fallback into a
+            # successful extraction of undecoded font bytes.
+            for number, page in enumerate(reader.pages, 1):
+                resource_ref = page.get("/Resources")
+                resources = resource_ref.get_object() if resource_ref else {}
+                font_ref = resources.get("/Font")
+                fonts = font_ref.get_object() if font_ref else {}
+                for reference in fonts.values():
+                    font = reference.get_object()
+                    if font.get("/Subtype") == "/Type0" and "/ToUnicode" not in font:
+                        raise RuntimeError(
+                            f"PDF 第 {number} 页 CID 文字层需要安装 media 依赖中的 PyMuPDF"
+                        ) from error
+            return [(page.extract_text() or "").strip() for page in reader.pages]
+        with pymupdf.open(path) as document:
+            if len(document) != len(reader.pages):
+                raise ValueError("PDF 解析器页数不一致，不能确认完整提取")
+            return [page.get_text("text").strip() for page in document]
 
     @staticmethod
     def _has_visual_content(page) -> bool:
