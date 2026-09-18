@@ -9,7 +9,7 @@
 ## Constraints
 
 - Target repository: https://github.com/zhangyisequence-cell/Knowledge_Manager
-- Intended host: 192.168.3.189; OS and remote access not yet verified.
+- Intended host: Windows, 192.168.3.189, SSH user Administrator; TCP 22 currently refuses connections.
 - No API keys, credentials, real knowledge vault, downloaded models or runtime databases in Git.
 - No unauthenticated public exposure. Initial service binds only 127.0.0.1.
 - No claim of real AI quality based on mocks or fallback summaries.
@@ -26,7 +26,7 @@
 - [x] Assess media/OCR prerequisites; report untested real AI/video capabilities explicitly.
 - [x] Provide local setup/run/verification scripts and deployment guidance.
 - [x] Re-run tests, inspect Git contents for secrets, and commit all project source locally.
-- [ ] Push to the user's repository after GitHub write authentication becomes available (device-login endpoint timed out).
+- [x] Deliver all tracked source via the restored GitHub connector; verify matching local/remote Git tree and create draft PR #1.
 
 ## Verification commands
 

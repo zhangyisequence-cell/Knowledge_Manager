@@ -22,9 +22,11 @@
 | OCR | 未完成 | 当前系统未发现 Tesseract 程序；仅安装 Python 包不等于 OCR 可用 |
 | 真实 AI 摘要、分类 | 未执行 | 没有配置实际模型供应商及密钥；试点 AI 关闭 |
 | Docker | 未执行 | Docker 引擎未启动 |
-| 目标主机部署 | 未执行 | 从当前环境探测 192.168.3.189 的 22/80/443/3389/8787 端口均未连接成功；不据此断言主机关机 |
+| 目标主机部署 | 未执行 | 目标可响应 ping；最新探测 192.168.3.189:22 返回连接被拒绝，等待目标端 sshd 服务和监听状态 |
 | GitHub 访问 | 用户补授权后 Git 可读取 | 已取回原有 main 的初始提交；代码交付记录见 Git 提交及分支 |
-| GitHub 写入 | 本地已提交，远端未推送 | 本机无写入凭据；GCM 与官方 GitHub CLI 设备登录均未取得授权，CLI 明确报告 `/login/device/code` 连接超时 |
+| GitHub 写入 | 已交付 | GitHub 连接器已恢复，通过 Git 数据接口提交全部 80 个文件至 `validation/knowledge-inbox`；草稿 PR #1 已创建 |
+
+交付入口：[PR #1](https://github.com/zhangyisequence-cell/Knowledge_Manager/pull/1)。首次远端提交 `af60b05b3720e3fdfb060c6e99716ea10ea29c57` 与本地已验证提交 `c061254ffd5f17f0a603bf133db3787cdea6a739` 的 Git tree 均为 `aca660cad8320fef0073433c36a963b4a49e11f3`，证明全部文件内容和路径一致。提交元数据不同，因此提交 SHA 不同。该远端提交的 [GitHub 自动测试](https://github.com/zhangyisequence-cell/Knowledge_Manager/actions/runs/35349770860) 已在 Windows 和 Ubuntu 两种环境全部通过。
 
 可复现命令见 README。实时样本笔记及原始结果保存于被 Git 忽略的 `runtime/`。
 

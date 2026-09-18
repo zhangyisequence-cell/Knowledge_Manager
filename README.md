@@ -90,7 +90,9 @@ Obsidian 是读取本地文件夹的客户端。手机/外出电脑使用完整 
 
 ## 后续顺序
 
-1. 打通目标机器远程登录和 GitHub 仓库写入授权。
+代码已交付至本仓库的 `validation/knowledge-inbox` 分支，见 [试点草稿 PR #1](https://github.com/zhangyisequence-cell/Knowledge_Manager/pull/1)。
+
+1. 打通目标机器远程登录，将已验证的试点部署到旧笔记本。
 2. 用真实公众号文章、复杂文档、中文视频和选定 AI 模型验收。
 3. 确定微信提交入口，再接入资料处理队列。
 4. 配置私人外网访问、Obsidian 同步、开机自启和备份。
