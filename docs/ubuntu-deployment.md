@@ -18,11 +18,13 @@
 3. 校验本地与远端安装配置 ISO 的 SHA-256 一致；重新挂载 Ubuntu 安装镜像及新配置盘，原来的 `cidata-seed-v2.iso` 不使用。
 4. 启动镜像后，实际控制台进入 Subiquity 自动安装配置，读取到了网络、文件系统、身份和 SSH 配置。确认对象是上述 RAW 空盘后，继续自动安装。配置要求安装结束关机。
 
-安装器完成最后的安全更新后已自动关机。2026-09-19 约 02:13，虚拟机在全部卸载安装 ISO 和配置盘后从系统盘成功引导 Ubuntu 24.04.4。正式系统通过 Default Switch DHCP 获得 `172.27.70.12`；该地址会变化，不能写成固定服务地址。专用 `knowledgeadmin` 公钥 SSH 登录和 `sudo` 已成功，SSH 主机密钥指纹已通过受信任的 Hyper-V 控制台核对。NTP 已同步。根盘容量约 124 GiB，剩余约 113 GiB。
+安装器完成最后的安全更新后已自动关机。2026-09-19 约 02:13，虚拟机在全部卸载安装 ISO 和配置盘后从系统盘成功引导 Ubuntu 24.04.4。正式系统最初通过 Default Switch DHCP 获得 `172.27.70.12`；短暂正常关机调整内存后重新启动，地址变为 `172.27.65.231`，证明该地址不能写成固定服务地址。重启后再次验证了专用 `knowledgeadmin` 公钥 SSH 登录和 `sudo`，固定 SSH 主机密钥与受信任 Hyper-V 控制台显示的指纹相同。时区已设为 `Asia/Shanghai`，NTP 已同步。根盘容量约 124 GiB，剩余约 112 GiB。
 
-硬件实查：Intel i5-3320M，宿主机约 12GB 内存；VM 当前 2 vCPU，启动内存配置 4 GiB，实际由 Hyper-V 动态分配。根盘约 124 GiB、剩余约 113 GiB。本地大模型必须按该资源实测，不能直接使用默认 7B 配置。此前传输的约 38 MB 语音模型仍不完整，不可视为可用模型；后续需完整校验后再部署模型。
+硬件实查：Intel i5-3320M，宿主机约 12GB 内存；VM 当前固定 4 GiB 内存、2 vCPU。根盘约 124 GiB、剩余约 112 GiB。本地大模型必须按该资源实测，不能直接使用默认 7B 配置。宿主机交流电休眠当前为 `never`，这是观察到的既有状态，并非本次部署修改。服务器上的语音模型元数据三个文件已经校验，主模型正在服务器直接断点续传，尚未完成或发布；不能把管理电脑上的完整模型误写成服务器已就绪。
 
-部署源码已形成提交：本地提交 `680e43c`、远端提交 `19c5b147`，两者 Git tree 均为 `419d00003db3d3b4e49a5c1af3e15f585b7e2bb2`，已包含 `activate_release.py` 和微信回调 service。由该源码生成的干净 Git archive 大小约 185 KB，SHA-256 为 `df8a03e965efb1fa9379f98af880a99363bb949b99bece4d9eb99a6a1302b8b8`，上传后在正式 Ubuntu 内核验一致，并已解压到 `/opt/knowledge-manager/releases/680e43c`。安装脚本已通过临时 systemd 单元 `knowledge-manager-install` 启动，但尚未确认执行完成，不能据此声称应用部署成功。
+当前部署源码为本地提交 `2a76c089e3c1c773b291f129911d4ddd000b5f93`、远端提交 `5cafe99bb70706a7e14fe37a16a07a263e2ff45a`，两者 Git tree 均为 `36762501b1edee5e33d006bf6d08f256eb4da330`；对应的两次最新 CI 均成功。服务器 release 为 `/opt/knowledge-manager/releases/2a76c08`，上传归档 `/var/tmp/knowledge-manager-minimal.tar.gz` 的 SHA-256 `e5097de29df4b569ed3f22ad2a30e21e61ac9ddb02d6bdc407d90e0aa8ea41f3` 已核验。安装器加入 `--no-install-recommends` 后，模拟结果由 205 个包降至 161 个包，下载量由 180 MB 降至 124 MB，新增磁盘占用由 623 MB 降至 409 MB；所需解析器仍保留。临时 systemd 单元 `knowledge-manager-install` 仍在执行安装，当前 apt 正在下载 `libllvm20`，应用尚未部署完成，也没有应用健康检查结果。
+
+模型下载器已查明镜像 HTTP 403 的原因：镜像拒绝 Python 默认 User-Agent，项目专用 User-Agent 可用。相关下载器测试现为 11 项并已通过。新脚本 `scripts/check_server_ingestion.py` 可检查文本、TXT、Markdown、DOCX、XLSX、PDF 和旧 DOC 七类真实入库结果，但尚未在正式服务器运行。
 
 Windows 局域网 `192.168.3.189:22` 已通过固定的 Tailscale 主机公钥验证，是同一台宿主机。拟议的专用 Ubuntu SSH 转发脚本 `scripts/expose-ubuntu-ssh.ps1` 尚未执行；新增持久端口和防火墙规则被自动审批拒绝，等待用户明确授权。现有 SSH 中转仍可用于部署。
 
@@ -42,10 +44,10 @@ python scripts/build_ubuntu_seed.py --public-key "$env:USERPROFILE/.ssh/knowledg
 
 ## 后续验证顺序
 
-1. 等待并检查临时单元 `knowledge-manager-install` 的最终状态与完整日志；若失败，按激活脚本的安全回滚状态排障，不能直接手工启动旧代码。
+1. 等待当前 apt 下载和临时单元 `knowledge-manager-install` 完成，检查最终状态与完整日志；若失败，按激活脚本的安全回滚状态排障，不能并发重启旧安装任务或直接手工启动旧代码。
 2. 安装完成后核对 `knowledge-manager.service`、备份 timer、当前 release 链接和本机 `/api/health`；确认微信 service 在无凭据时保持关闭。
-3. 在服务器执行真实中文文本、文档、PDF 和 OCR 入库，核对 Vault 原件、Markdown、SQLite 和服务账户权限；随后做服务重启和虚拟机重启验收。
+3. 在服务器运行尚未执行的 `scripts/check_server_ingestion.py` 七类真实入库验收和中文 OCR 检查，核对 Vault 原件、Markdown、SQLite 和服务账户权限；随后做服务重启和虚拟机重启验收。
 4. 手动创建并校验正式备份，在独立目录恢复并核对清单、原件及数据库；配置第二备份介质。
-5. 完整部署并校验语音模型后，在这台无 AVX2 的实际 CPU 上验收中文媒体转写性能与兼容性。AI 和微信凭据齐全后再分别启用并做端到端验收。
+5. 等待服务器主模型续传完成，按固定大小和 SHA-256 校验后再发布到模型缓存；在这台无 AVX2 的实际 CPU 上验收中文媒体转写性能与兼容性。AI 和微信凭据齐全后再分别启用并做端到端验收。
 
 微信入口待用户实际公众号/微信客服账号配置。Obsidian Vault 是服务器上的文件夹；完整客户端访问方案和备份介质仍需部署后验证，不能把微信页面入口视为已完成 Obsidian 同步。
