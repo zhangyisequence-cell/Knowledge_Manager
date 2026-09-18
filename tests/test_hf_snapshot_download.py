@@ -90,6 +90,25 @@ def test_hash_mismatch_never_publishes_model(tmp_path, range_server):
     assert not destination.with_suffix(".bin.part").exists()
 
 
+def test_downloads_from_mirror_rejecting_default_library_user_agent(tmp_path, range_server, monkeypatch):
+    url, handler = range_server
+    original_get = handler.do_GET
+
+    def mirror_get(self):
+        if self.headers.get("User-Agent", "").startswith("Python-urllib/"):
+            self.send_error(403, "Default library clients are not accepted")
+            return
+        original_get(self)
+
+    monkeypatch.setattr(handler, "do_GET", mirror_get)
+    destination = tmp_path / "model.bin"
+    downloader.download_verified(
+        url, destination, expected_size=len(handler.payload),
+        expected_sha256=hashlib.sha256(handler.payload).hexdigest(),
+    )
+    assert destination.read_bytes() == handler.payload
+
+
 class _Response(io.BytesIO):
     def __init__(self, body, *, status=200, headers=None):
         super().__init__(body)

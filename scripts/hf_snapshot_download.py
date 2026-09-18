@@ -69,7 +69,10 @@ def download_verified(url: str, destination: Path, *, expected_size: int,
     if offset > expected_size:
         partial.unlink()
         offset = 0
-    request = Request(url, headers={"Range": f"bytes={offset}-"} if offset else {})
+    headers = {"User-Agent": "KnowledgeManager/1.0"}
+    if offset:
+        headers["Range"] = f"bytes={offset}-"
+    request = Request(url, headers=headers)
     with _open(request, timeout=timeout) as response:
         resumed = offset and getattr(response, "status", None) == 206
         if resumed:
