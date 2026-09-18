@@ -45,3 +45,7 @@ sudo /opt/knowledge-manager/current/.venv/bin/python /opt/knowledge-manager/curr
 若需要正式恢复，先停止应用和备份定时器，保留当前数据目录用于回退。将恢复的 `vault`、`data` 放回上述标准路径，再赋予 `knowledge-manager:knowledge-manager` 所有权；配置由 root 持有，`server.env` 权限 0600，配置目录 `root:knowledge-manager` 权限 0750。备份中的旧任务可能引用原服务器绝对路径，因此必须保持原路径或进行经过验证的迁移。模型缓存可保留或重新下载。
 
 恢复后先检查健康接口、数据库数量、中文笔记和实际附件链接，再恢复定时器。定期进行真实文件上传、重启和恢复演练，并记录日期、版本、归档哈希和结果。
+
+## 已执行的基础验证
+
+2026-09-18：本地 71 项测试、Ruff 和依赖检查通过；GitHub 提交 `eb9582b` 的 Windows/Ubuntu CI 均通过。在 Ubuntu 24.04 安装环境使用 `sudo python3 scripts/check_backup_linux.py` 创建独立临时服务和合成文件，实测 systemd 取消备份后服务恢复、未完成归档清理。脚本只使用新建的测试目录和专用测试服务，不操作生产数据。这项结果不替代最终服务器的真实知识库恢复与重启验收。
