@@ -69,6 +69,18 @@ def download_verified(url: str, destination: Path, *, expected_size: int,
     if offset > expected_size:
         partial.unlink()
         offset = 0
+    elif offset == expected_size:
+        try:
+            if expected_sha256 and _digest(partial, "sha256") != expected_sha256:
+                raise ValueError("sha256")
+            if expected_git_blob:
+                verify_git_blob(partial, expected_git_blob)
+        except ValueError:
+            partial.unlink()
+            offset = 0
+        else:
+            partial.replace(destination)
+            return destination
     headers = {"User-Agent": "KnowledgeManager/1.0"}
     if offset:
         headers["Range"] = f"bytes={offset}-"

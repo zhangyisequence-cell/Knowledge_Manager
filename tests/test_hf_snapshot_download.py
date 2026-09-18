@@ -74,6 +74,51 @@ def test_resumes_partial_download_and_atomically_publishes_verified_file(tmp_pat
     assert handler.ranges == ["bytes=8-"]
 
 
+def test_complete_verified_partial_is_published_without_network(tmp_path, monkeypatch):
+    payload = b"already complete and verified"
+    destination = tmp_path / "model.bin"
+    partial = destination.with_suffix(".bin.part")
+    partial.write_bytes(payload)
+    monkeypatch.setattr(
+        downloader,
+        "_open",
+        lambda *args, **kwargs: pytest.fail("complete verified partial must not use network"),
+    )
+
+    downloader.download_verified(
+        "https://example.invalid/model.bin",
+        destination,
+        expected_size=len(payload),
+        expected_sha256=hashlib.sha256(payload).hexdigest(),
+        expected_git_blob=hashlib.sha1(
+            b"blob " + str(len(payload)).encode() + b"\0" + payload
+        ).hexdigest(),
+    )
+
+    assert destination.read_bytes() == payload
+    assert not partial.exists()
+
+
+def test_complete_corrupt_partial_is_removed_and_downloaded_from_zero(
+    tmp_path, range_server
+):
+    url, handler = range_server
+    destination = tmp_path / "model.bin"
+    partial = destination.with_suffix(".bin.part")
+    partial.write_bytes(b"x" * len(handler.payload))
+
+    downloader.download_verified(
+        url,
+        destination,
+        expected_size=len(handler.payload),
+        expected_sha256=hashlib.sha256(handler.payload).hexdigest(),
+    )
+
+    assert destination.read_bytes() == handler.payload
+    assert not partial.exists()
+    assert handler.ranges == [None]
+
+
 def test_hash_mismatch_never_publishes_model(tmp_path, range_server):
     url, _ = range_server
     destination = tmp_path / "model.bin"
