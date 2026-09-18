@@ -17,7 +17,7 @@ if [ -e /opt/knowledge-manager/current ] && [ ! -L /opt/knowledge-manager/curren
 fi
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y python3.12-venv ffmpeg antiword tesseract-ocr tesseract-ocr-chi-sim tesseract-ocr-eng curl ca-certificates
+apt-get install -y --no-install-recommends python3.12-venv ffmpeg antiword tesseract-ocr tesseract-ocr-chi-sim tesseract-ocr-eng curl ca-certificates
 if ! id knowledge-manager >/dev/null 2>&1; then
     useradd --system --home-dir /var/lib/knowledge-manager --shell /usr/sbin/nologin knowledge-manager
 fi
