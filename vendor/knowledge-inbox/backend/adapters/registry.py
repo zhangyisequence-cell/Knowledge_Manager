@@ -32,6 +32,7 @@ class AdapterRegistry:
 
 def build_registry(config: AppConfig) -> AdapterRegistry:
     from backend.adapters.image import ImageAdapter
+    from backend.adapters.legacy_word import LegacyWordAdapter
     from backend.adapters.local_file import LocalFileAdapter
     from backend.adapters.pdf import PDFAdapter
     from backend.adapters.podcast import PodcastAdapter
@@ -58,7 +59,8 @@ def build_registry(config: AppConfig) -> AdapterRegistry:
     ):
         registry.register_url(adapter_type(config))
     for adapter_type in (
-        PDFAdapter, ImageAdapter, SpreadsheetAdapter, LocalFileAdapter, WeChatVideoAdapter
+        PDFAdapter, ImageAdapter, SpreadsheetAdapter, LegacyWordAdapter,
+        LocalFileAdapter, WeChatVideoAdapter,
     ):
         registry.register_file(adapter_type(config))
     return registry
