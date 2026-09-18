@@ -7,6 +7,7 @@ from pathlib import Path
 import httpx
 
 from backend.adapters.base import FetchedContent, SourceAdapter
+from backend.processors.transcriber import Transcriber
 
 
 class WeChatVideoAdapter(SourceAdapter):
@@ -14,16 +15,26 @@ class WeChatVideoAdapter(SourceAdapter):
     _url_pattern = re.compile(
         r"https?://[^ ]*(?:channels\.weixin\.qq\.com|finder\.video\.qq\.com|weixin\.qq\.com/sph/)"
     )
-    _video_suffixes = {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi", ".mp3", ".m4a", ".wav"}
+    _unsupported_audio_suffixes = {".silk", ".slk"}
 
     @classmethod
     def detect(cls, value: str | Path) -> bool:
         if isinstance(value, Path):
-            return value.suffix.lower() in cls._video_suffixes
+            return (
+                Transcriber.supports_file(value)
+                or value.suffix.lower() in cls._unsupported_audio_suffixes
+            )
         return bool(cls._url_pattern.match(value))
 
     async def fetch(self, value: str | Path, **kwargs: object) -> FetchedContent:
         if isinstance(value, Path):
+            with value.open("rb") as source:
+                header = source.read(16)
+            if (
+                value.suffix.lower() in self._unsupported_audio_suffixes
+                or header.startswith((b"#!SILK_V3", b"\x02#!SILK_V3"))
+            ):
+                raise ValueError("SILK 音频暂不支持；请在微信接口选择 AMR，或先转换为 WAV/MP3")
             return FetchedContent(
                 source_type=self.source_type,
                 title=kwargs.get("title") or value.stem,

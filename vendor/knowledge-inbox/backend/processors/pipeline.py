@@ -32,6 +32,10 @@ class ContentPipeline:
 
     async def process(self, job: Job) -> tuple[ContentItem, Path]:
         item = await self._extract(job)
+        # A recovered job must overwrite its own published files after a crash,
+        # including one occurring between the vault write and SQLite commit.
+        item.id = job.id
+        item.created_at = job.created_at
         item.raw_content = clean_text(item.raw_content)
         if item.transcript:
             item.transcript = clean_text(item.transcript)
@@ -41,7 +45,10 @@ class ContentPipeline:
             self._has_audio_media(item.media_files)
             and not item.transcript
             and not item.raw_content
-            and not self.ai.supports_video
+            and not (
+                self.ai.supports_video
+                and AIProcessor._first_video(item.media_files) is not None
+            )
         ):
             raise RuntimeError("未生成转写文本；请安装 media 依赖并确认 ffmpeg 可用")
 
@@ -108,22 +115,7 @@ class ContentPipeline:
 
     @staticmethod
     def _has_audio_media(paths: list[str]) -> bool:
-        suffixes = {
-            ".aac",
-            ".avi",
-            ".flac",
-            ".m4a",
-            ".m4v",
-            ".mkv",
-            ".mov",
-            ".mp3",
-            ".mp4",
-            ".ogg",
-            ".opus",
-            ".wav",
-            ".webm",
-        }
-        return any(Path(path).suffix.lower() in suffixes for path in paths)
+        return any(Transcriber.supports_file(Path(path)) for path in paths)
 
     def _videos_to_delete(self, item: ContentItem) -> list[Path]:
         if not self.writer.config.delete_video_after_ingest:

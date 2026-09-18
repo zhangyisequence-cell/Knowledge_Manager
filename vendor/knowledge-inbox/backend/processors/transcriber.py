@@ -7,23 +7,33 @@ from pathlib import Path
 class Transcriber:
     _media_suffixes = {
         ".aac",
+        ".aif",
+        ".aiff",
+        ".amr",
         ".avi",
         ".flac",
         ".m4a",
+        ".m4b",
         ".m4v",
         ".mkv",
         ".mov",
         ".mp3",
         ".mp4",
+        ".oga",
         ".ogg",
         ".opus",
         ".wav",
         ".webm",
+        ".wma",
     }
+
+    @classmethod
+    def supports_file(cls, path: Path) -> bool:
+        return path.suffix.lower() in cls._media_suffixes
 
     async def transcribe_first(self, media_files: list[str]) -> str | None:
         path = next(
-            (Path(value) for value in media_files if Path(value).suffix.lower() in self._media_suffixes),
+            (Path(value) for value in media_files if self.supports_file(Path(value))),
             None,
         )
         if not path:

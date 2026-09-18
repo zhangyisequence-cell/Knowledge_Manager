@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import re
 from pathlib import Path
 
 from pypdf import PdfReader
@@ -22,17 +21,36 @@ class PDFAdapter(SourceAdapter):
     def _fetch_sync(self, path: Path, title: object = None) -> FetchedContent:
         reader = PdfReader(path)
         pages = [(page.extract_text() or "").strip() for page in reader.pages]
-        text = "\n\n".join(f"## 第 {index} 页\n\n{page}" for index, page in enumerate(pages, 1))
-        ocr_used = False
+        ocr_pages: list[int] = []
+        blank_pages: list[int] = []
+        candidates: list[int] = []
+        for number, (page, text) in enumerate(zip(reader.pages, pages), 1):
+            if not text:
+                if self._has_visual_content(page):
+                    candidates.append(number)
+                else:
+                    blank_pages.append(number)
+            elif len("".join(text.split())) < 80 and page.images:
+                # A page number/header is not evidence that a scanned body was read.
+                candidates.append(number)
         page_images: list[str] = []
-        if len(text.strip()) < max(80, len(reader.pages) * 20):
-            ocr_text, page_images = self._ocr(path)
-            if ocr_text:
-                text = ocr_text
-                ocr_used = True
-        meaningful_text = re.sub(r"(?m)^## 第 \d+ 页\s*$", "", text).strip()
-        if not meaningful_text:
+        if candidates:
+            recognized, page_images = self._ocr(path, candidates)
+            for number, text in recognized.items():
+                if not text:
+                    blank_pages.append(number)
+                    continue
+                original = pages[number - 1]
+                pages[number - 1] = (
+                    f"{original}\n\n{text}" if original and original != text else text
+                )
+                ocr_pages.append(number)
+        if not any(pages):
             raise ValueError("PDF 未提取到正文，请检查是否为空白文件，或安装并配置扫描件 OCR")
+        text = "\n\n".join(
+            f"## 第 {index} 页\n\n{page or '（空白页）'}"
+            for index, page in enumerate(pages, 1)
+        )
         metadata = reader.metadata or {}
         return FetchedContent(
             source_type=self.source_type,
@@ -40,27 +58,64 @@ class PDFAdapter(SourceAdapter):
             author=metadata.get("/Author"),
             raw_content=text,
             media_files=[str(path), *page_images],
-            metadata={"pages": len(reader.pages), "ocr_used": ocr_used},
+            metadata={
+                "pages": len(reader.pages),
+                "ocr_used": bool(ocr_pages),
+                "ocr_pages": ocr_pages,
+                "blank_pages": sorted(blank_pages),
+            },
         )
 
-    def _ocr(self, path: Path) -> tuple[str, list[str]]:
+    @staticmethod
+    def _has_visual_content(page) -> bool:
+        # Empty PDF pages commonly still contain graphics-state/font setup operators.
+        # Only painting operators (or annotations) require a rendered-page check.
+        if page.get("/Annots"):
+            return True
+        contents = page.get_contents()
+        paint = {b"Do", b"INLINE IMAGE", b"sh", b"S", b"s", b"f", b"F", b"f*",
+                 b"B", b"B*", b"b", b"b*", b"Tj", b"TJ", b"'", b'"'}
+        return contents is not None and any(
+            operator in paint for _, operator in contents.operations
+        )
+
+    def _ocr(self, path: Path, page_numbers: list[int]) -> tuple[dict[int, str], list[str]]:
         try:
-            import fitz
+            import pymupdf
             import pytesseract
             from PIL import Image
-        except ImportError:
-            return "", []
+        except ImportError as error:
+            raise RuntimeError(
+                f"PDF 第 {page_numbers[0]} 页 OCR 需要安装 media 依赖"
+            ) from error
 
         image_dir = self.config.data_dir / "derived" / path.stem
         image_dir.mkdir(parents=True, exist_ok=True)
-        texts: list[str] = []
+        texts: dict[int, str] = {}
         images: list[str] = []
-        with fitz.open(path) as document:
-            for index, page in enumerate(document):
-                pixmap = page.get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False)
-                image_path = image_dir / f"page-{index + 1}.png"
+        with pymupdf.open(path) as document:
+            for number in page_numbers:
+                page = document[number - 1]
+                pixmap = page.get_pixmap(matrix=pymupdf.Matrix(2, 2), alpha=False)
+                image_path = image_dir / f"page-{number}.png"
                 pixmap.save(image_path)
                 images.append(str(image_path))
-                page_text = pytesseract.image_to_string(Image.open(image_path), lang="chi_sim+eng")
-                texts.append(f"## 第 {index + 1} 页\n\n{page_text.strip()}")
-        return "\n\n".join(texts), images
+                with Image.open(image_path) as image:
+                    # Only an exactly white rendered page is safely skipped without OCR.
+                    # A noisy scan, diagram, or faint text must not be labelled blank.
+                    if image.convert("RGB").getextrema() == ((255, 255),) * 3:
+                        texts[number] = ""
+                        continue
+                    try:
+                        text = pytesseract.image_to_string(
+                            image, lang="chi_sim+eng", timeout=120
+                        ).strip()
+                    except (pytesseract.TesseractError, OSError, RuntimeError) as error:
+                        raise RuntimeError(
+                            f"PDF 第 {number} 页 OCR 失败，请检查 Tesseract、chi_sim/eng 语言包"
+                            f"及页面内容：{error}"
+                        ) from error
+                if not text:
+                    raise RuntimeError(f"PDF 第 {number} 页 OCR 未识别到正文，不能确认完整提取")
+                texts[number] = text
+        return texts, images
