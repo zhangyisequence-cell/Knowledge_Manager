@@ -1,1 +1,22 @@
-fatal: path '"deploy/syncthing@knowledge-manager.service"' does not exist in 'HEAD'
+[Unit]
+Description=Private Syncthing Vault for %i
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=%i
+Group=%i
+Environment=HOME=/var/lib/%i
+ExecStart=/usr/bin/syncthing serve --no-browser --no-restart --home=/var/lib/%i/.config/syncthing
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/srv/knowledge-manager/vault /var/lib/%i
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

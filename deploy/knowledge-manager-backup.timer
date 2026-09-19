@@ -1,1 +1,11 @@
-fatal: path '"deploy/knowledge-manager-backup.timer"' does not exist in 'HEAD'
+[Unit]
+Description=Hourly knowledge backup
+
+[Timer]
+OnCalendar=*-*-* *:00:00
+Persistent=true
+RandomizedDelaySec=0
+Unit=knowledge-manager-backup.service
+
+[Install]
+WantedBy=timers.target
