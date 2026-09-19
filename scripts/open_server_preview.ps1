@@ -89,16 +89,14 @@ if (!$Open) {
 $key = Get-RequiredFile $KeyPath 'SSH private key'
 $knownHostsSource = Get-RequiredFile $KnownHostsPath 'SSH known-hosts'
 $ssh = Resolve-SshApplication $SshPath
-$knownHosts = Join-Path ([IO.Path]::GetTempPath()) (
-    'knowledge-manager-known-hosts-{0}.txt' -f [Guid]::NewGuid().ToString('N')
-)
+$cacheDirectory = Join-Path $env:LOCALAPPDATA 'KnowledgeManagerPreview'
+$knownHosts = Join-Path $cacheDirectory 'known_hosts'
 if ($knownHosts -match '\s') {
-    throw 'The system temporary path contains whitespace; choose a Windows account with a plain temporary path.'
+    throw 'The user-local cache path contains whitespace; choose a Windows account with a plain profile path.'
 }
-[IO.File]::Copy($knownHostsSource, $knownHosts, $false)
+[void][IO.Directory]::CreateDirectory($cacheDirectory)
+[IO.File]::Copy($knownHostsSource, $knownHosts, $true)
 $knownHostsOption = Format-SshPathOption 'UserKnownHostsFile' $knownHosts
-
-try {
 
 # Bind and release once so an occupied local port fails before any remote connection.
 $listener = $null
@@ -166,6 +164,3 @@ Write-Host "Guest address discovered from host neighbor data: $guestAddress"
 Write-Host 'Press Ctrl+C or close this PowerShell window to stop.'
 & $ssh @tunnelArguments
 if ($LASTEXITCODE -ne 0) { throw "SSH tunnel exited with code $LASTEXITCODE." }
-} finally {
-    Remove-Item -LiteralPath $knownHosts -Force -ErrorAction SilentlyContinue
-}

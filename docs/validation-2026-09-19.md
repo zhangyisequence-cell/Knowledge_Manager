@@ -1,14 +1,21 @@
 # 2026-09-19 验证记录
 
-## 05:43 实机增量
+## 17:54 实机增量
 
 - release `a849d7f` 已于 05:23:35 激活，Whisper 固定快照已校验并发布到应用缓存。真实 HTTP 上传 WAV、MP4、AMR 的三项任务于 05:37:17 全部完成；各项原件、Vault 附件、SQLite 转写、笔记转写与模型来源一致，复核提示存在。报告 `/var/tmp/km-media-http-a849d7f/media-ingestion-results.json` 中 `pipeline_passed=true`，`transcription_accuracy_passed=false`；严格事实核对每项仍为 4/5，均未正确识别“归档”。验收单元退出 1 是准确性未达标，三项入库任务本身均 succeeded。
 - 新媒体数据已备份为 `knowledge-20260918T214128-70b57f76.tar.gz`，2,000,989 字节；05:42 第二盘复制任务返回 0、状态 `copied`。Ubuntu 原包与 D: 副本独立 SHA-256 均为 `380025c5a189a6e32ad23fb55fb194818dd4857025a67d9378971e89ed48444a`。备份后健康接口恢复 `status=ok`、`storage_configured=true`，应用与备份 timer 均 active。
-- llama.cpp 固定源码构建于 05:22:55 成功，实际 `--version` 可运行、动态库均可解析；峰值约 1.6 GiB、swap 0。归档构建的版本字符串不含 Git commit，来源由固定源码归档 SHA 和根账户持有的构建标记追溯。Qwen 05:41 已下载 274,726,912 / 1,117,320,736 字节，仍未完成；AI 保持关闭，没有实际总结质量或推理资源验收结果。
+- llama.cpp 固定源码构建成功，实际 `--version` 可运行、动态库均可解析；构建峰值约 1.6 GiB、swap 0。Qwen 下载曾因镜像提前结束而保留 1,031,405,640 字节断点；服务端单字节 Range 检查返回正确 `206` 和总大小，随后同一单元续传完成。最终文件 1,117,320,736 字节，SHA-256 为 `6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e`，经临时缓存复验后原子发布到服务账户目录。
+- `llama-server` 只监听 `127.0.0.1:8080`，未启用开机启动。健康和模型列表通过；合成 JSON 请求在 16.108 秒返回完整对象，峰值约 197 MB，swap 保持 12 KB 基线。完整 9,641 字四段入库首轮按预期暴露默认 180 秒不足：首段推理未完成即 `ReadTimeout`，没有 item 或笔记。
+- 将本地请求超时提高到 600 秒后，用完全相同的 9,641 字样本复验。四段均完成且没有截断，单段耗时分别约 438、523、492、161 秒，LLM 峰值约 323 MB、swap 不增长；任务和笔记成功保存。但严格检查只找到开头的 `KJ-2026-104 / 林岚`，遗漏中段 `KJ-2026-287 / 23741元` 及尾段 `KJ-2026-953 / 2026年10月17日`，`passed=false`。失败证据在 `/var/tmp/knowledge-local-ai-acceptance-20260919-1745`。应用随即恢复 `AI_ENABLED=false`，健康接口确认 AI 关闭；LLM 已停止、disabled，启用标记已删除。模型文件留作可复现实验，不能称为合格的正式总结模型。
+- 本轮源码统一验证为 59 项上游测试及 334 项项目测试通过，共 393 项；Windows 因符号链接权限跳过 4 项，Ruff 和依赖检查通过。远端提交 `8eeea3d2f87821ea8d82bf243c955bd7fbfef985` 的 GitHub Actions 运行 `35435755348` 成功。
+- release `/opt/knowledge-manager/releases/bfc579a` 于 18:17 激活，升级前验证备份为 `knowledge-20260919T101709-622e759b.tar.gz`。新版本真实上传合成 WAV 的任务 `d4b1088a74464a0b941ed52656073486` succeeded；Obsidian frontmatter 与 SQLite 均为 `source_type=local_file`，自动转写复核标记存在，规则模式未被误称为 AI。
+- 最新归档 `knowledge-20260919T102200-d4662252.tar.gz` 为 3,086,652 字节。Ubuntu 原件与 Windows D: 副本 SHA-256 均为 `53aef3626492edd6ca659b7aedfbbaaf488b0a3d136ca22b48a3e89276aaa0a4`，第二盘任务结果为 0、状态 `copied`。
+- 18:26 完成虚拟机重启。Hyper-V 状态 Running、心跳正常；DHCP 地址从 `172.27.65.231` 改为 `172.27.67.99`，仍通过固定 SSH 主机指纹登录。重启后 `current` 指向 `bfc579a`，健康接口 `status=ok`、`storage_configured=true`、`ai_enabled=false`；应用和备份 timer active/enabled，LLM 与微信 inactive/disabled，两个启用标记均不存在，swap 为 0。
+- 临时预览脚本在重启后自动发现新地址，环回页面返回 HTTP 200、27,287 字节。Windows PowerShell 5.1 为嵌套 SSH 使用固定的用户级公开主机指纹缓存 `%LOCALAPPDATA%\\KnowledgeManagerPreview\\known_hosts`；真实打开/关闭后缓存与用户提供的可信文件 SHA-256 一致，没有随机临时文件残留。缓存不含私钥或凭证。
 
 下文为分阶段记录；较早的“尚未完成”状态以较新的实机增量为准。全部样本均为合成验收资料。
 
-最新一轮统一验证：59 项上游测试、320 项项目测试通过，共 379 项；Windows 因符号链接权限跳过 4 项，Ruff 全部通过。新增备份导出器的 3 项符号链接场景已在 Ubuntu 目标实际执行通过。该结果已由根代理独立运行确认；以下历史记录用于说明验证范围，不能把测试替身当成真实账号或正式服务器验收。
+上一轮统一验证：59 项上游测试、320 项项目测试通过，共 379 项；Windows 因符号链接权限跳过 4 项，Ruff 全部通过。新增备份导出器的 3 项符号链接场景已在 Ubuntu 目标实际执行通过。该结果已由根代理独立运行确认；以下历史记录用于说明验证范围，不能把测试替身当成真实账号或正式服务器验收。
 
 05:15 新增实机结果：
 

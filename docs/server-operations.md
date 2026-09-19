@@ -28,7 +28,7 @@
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\open_server_preview.ps1 -Open -KnownHostsPath C:\path\to\known_hosts
 ```
 
-浏览器访问 `http://127.0.0.1:18787`。脚本从宿主机只读查询虚拟机网卡邻居记录，确认唯一地址后在当前窗口运行 SSH；按 `Ctrl+C` 或关闭窗口即停止。若端口已占用，使用 `-LocalPort` 选择其他 1024–65535 端口。密钥默认读取当前用户的 `.ssh\knowledge_manager_ed25519`，也可用 `-KeyPath` 指定；脚本不会下载或保存密钥、修改 SSH 配置、开放防火墙或建立持久转发。不带 `-Open` 时只显示计划，不连接远端。
+浏览器访问 `http://127.0.0.1:18787`。脚本从宿主机只读查询虚拟机网卡邻居记录，确认唯一地址后在当前窗口运行 SSH；按 `Ctrl+C` 或关闭窗口即停止。若端口已占用，使用 `-LocalPort` 选择其他 1024–65535 端口。密钥默认读取当前用户的 `.ssh\knowledge_manager_ed25519`，也可用 `-KeyPath` 指定。为兼容 Windows PowerShell 5.1 的嵌套 SSH 参数，脚本会把用户提供的公开主机指纹覆盖复制到 `%LOCALAPPDATA%\KnowledgeManagerPreview\known_hosts`；它不会复制私钥、修改 SSH 配置、开放防火墙或建立持久转发。不带 `-Open` 时只显示计划，不连接远端。
 
 ## 备份
 

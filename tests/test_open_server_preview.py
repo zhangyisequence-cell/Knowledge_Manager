@@ -166,9 +166,10 @@ def test_known_hosts_path_with_spaces_survives_openssh_option_parsing(tmp_path):
     assert parsed == [str(known_hosts).replace("\\", "/")]
 
 
-def test_preview_uses_and_removes_public_host_key_temp_copy():
+def test_preview_uses_one_deterministic_user_local_public_key_cache():
     source = SCRIPT.read_text(encoding="utf-8")
 
-    assert "[IO.File]::Copy($knownHostsSource, $knownHosts, $false)" in source
-    assert "'knowledge-manager-known-hosts-{0}.txt'" in source
-    assert "Remove-Item -LiteralPath $knownHosts -Force" in source
+    assert "Join-Path $env:LOCALAPPDATA 'KnowledgeManagerPreview'" in source
+    assert "Join-Path $cacheDirectory 'known_hosts'" in source
+    assert "[IO.File]::Copy($knownHostsSource, $knownHosts, $true)" in source
+    assert "knowledge-manager-known-hosts-" not in source
