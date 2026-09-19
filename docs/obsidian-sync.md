@@ -1,6 +1,6 @@
 # Obsidian 远程同步
 
-服务器 Ubuntu Vault `/srv/knowledge-manager/vault` 是唯一主数据源。数据库、任务队列、API 密钥、模型缓存和备份归档永远不加入同步文件夹。同步链路只经过 Tailscale 私网，Syncthing 的公共发现、Relay 和 NAT 穿透已关闭。
+服务器 CentOS Vault `/srv/knowledge-manager/vault` 是唯一主数据源。数据库、任务队列、API 密钥、模型缓存和备份归档永远不加入同步文件夹。同步链路只经过 Tailscale 私网，Syncthing 的公共发现、Relay 和 NAT 穿透已关闭。
 
 ## 首次配对
 

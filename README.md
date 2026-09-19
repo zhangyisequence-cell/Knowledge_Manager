@@ -1,8 +1,8 @@
 # Knowledge Manager
 
-微信收发 → Ubuntu 服务器解析整理 → 本地 Obsidian 知识库。
+微信收发 → CentOS 服务器解析整理 → 本地 Obsidian 知识库。
 
-当前阶段：已完成 Knowledge Inbox 的 DeepSeek、备份、Tailscale/Syncthing 和 Cloudflare/微信代码切片及离线验证；**真实 DeepSeek key、微信账号、Cloudflare hostname、Windows/安卓配对和 Ubuntu 端到端验收仍未完成，不能当作生产系统已上线。**
+当前阶段：已完成 Knowledge Inbox 的 DeepSeek、备份、Tailscale/Syncthing 和 Cloudflare/微信代码切片及离线验证；**真实 DeepSeek key、微信账号、Cloudflare hostname、Windows/安卓配对和 CentOS 端到端验收仍未完成，不能当作生产系统已上线。**
 
 目标仓库：https://github.com/zhangyisequence-cell/Knowledge_Manager
 
@@ -13,8 +13,8 @@
 - Excel 支持 XLSX/XLSM/XLS：保留工作表与行列位置、文本、日期、数值、布尔值；现代格式记录普通/数组公式与缓存标记，原件随库保留。
 - 三处修补：Word 表格提取；空白 PDF 不再假成功；原始附件复制进 Vault，使用相对链接。
 - 仅本机访问的试用服务、独立试用 Vault、复现脚本、依赖版本锁定。
-- DeepSeek OpenAI 兼容提供方：只发送正文、表格文本、OCR 文本和音视频转写文本；原始二进制留在 Ubuntu。
-- Ubuntu Vault 只通过 Tailscale 保护的 Syncthing 同步到 Windows 与安卓；数据库、密钥、模型缓存和备份不共享。
+- DeepSeek OpenAI 兼容提供方：只发送正文、表格文本、OCR 文本和音视频转写文本；原始二进制留在 CentOS。
+- CentOS Vault 只通过 Tailscale 保护的 Syncthing 同步到 Windows 与安卓；数据库、密钥、模型缓存和备份不共享。
 - Cloudflare Tunnel 只转发 `/wechat/callback`，其他公网路径返回 404；回调具有时间窗口、白名单和持久幂等。
 - Windows / Linux CI：既有试点已在两种环境通过，后续提交的结果以 PR 检查为准。
 
@@ -40,7 +40,7 @@ sh scripts/setup.sh
 .venv/bin/python scripts/run_local.py
 ```
 
-需要系统提供 Python 3.12+ 及 venv。媒体处理还需要 FFmpeg；扫描 PDF/图片 OCR 需要 Tesseract 及 `chi_sim`、`eng` 语言包。Debian/Ubuntu 对应软件包为 `ffmpeg tesseract-ocr tesseract-ocr-chi-sim tesseract-ocr-eng`。
+需要系统提供 Python 3.12+ 及 venv。媒体处理还需要 FFmpeg；扫描 PDF/图片 OCR 需要 Tesseract 及 `chi_sim`、`eng` 语言包。CentOS 安装入口会启用 EPEL/CRB，并安装 `ffmpeg-free`、`antiword`、`tesseract` 及对应语言包。
 
 `requirements.lock` 固定本次解析的依赖版本；尚未在目标旧笔记本上验证安装。Python 包安装不包含语音模型或 Tesseract 系统程序。
 
@@ -67,7 +67,7 @@ powershell -File scripts/make_video_sample.ps1
 
 默认 AI 关闭。此时“摘要”只是规则提取，分类为“待分类”，不是智能总结。
 
-在 Ubuntu 本地配置 `KNOWLEDGE_OPENAI_BASE_URL=https://api.deepseek.com`、`OPENAI_MODEL=deepseek-chat` 和 `OPENAI_API_KEY` 后启动：
+在 CentOS 本地配置 `KNOWLEDGE_OPENAI_BASE_URL=https://api.deepseek.com`、`OPENAI_MODEL=deepseek-chat` 和 `OPENAI_API_KEY` 后启动：
 
 ```powershell
 .venv/Scripts/python.exe scripts/run_local.py --enable-ai
@@ -77,11 +77,9 @@ powershell -File scripts/make_video_sample.ps1
 
 ## 旧笔记本与外网访问
 
-最终部署目标已由用户确认改为 **Hyper-V 中的 Ubuntu**。Windows 宿主机 `100.64.186.105`（Tailscale）可用专用 SSH 密钥管理，虚拟机名 `Ubuntu`，4 GiB 内存、1 vCPU。
+最终部署目标是旧笔记本上的 **CentOS Stream/RHEL-compatible 9 或 10**。服务器通过 Tailscale 私网管理；部署脚本会 fail-closed：未提供 DeepSeek、微信或 Cloudflare 本地凭据时不启用对应服务。**真实服务器、手机配对和公网回调仍需按验证记录完成，不能把代码测试视为部署完成。**
 
-Ubuntu 24.04 已作为部署目标；宿主机 Tailscale 地址为 `100.64.186.105`。部署脚本会 fail-closed：未提供 DeepSeek、微信或 Cloudflare 本地凭据时不启用对应服务。**真实服务器、手机配对和公网回调仍需按验证记录完成，不能把代码测试视为部署完成。**
-
-部署进度和安装脚本说明见 [Ubuntu 部署记录](docs/ubuntu-deployment.md)。微信入口按用户选择采用公众号/微信客服方向，优先核实可接收文件的微信客服；尚未配置真实账号。
+部署步骤和 CentOS 安装脚本见 [CentOS 部署记录](docs/centos-deployment.md)。微信入口按用户选择采用公众号/微信客服方向，优先核实可接收文件的微信客服；尚未配置真实账号。
 
 管理面和主应用仍固定监听回环地址；Tailscale 只用于 Syncthing/SSH 私网管理，Cloudflare 只承载微信回调。不要直接做公网端口映射。
 
@@ -100,10 +98,10 @@ Obsidian 通过 Syncthing 同步服务器 Vault；配对和冲突处理步骤见
 
 代码已交付至本仓库的 `validation/knowledge-inbox` 分支，见 [试点草稿 PR #1](https://github.com/zhangyisequence-cell/Knowledge_Manager/pull/1)。
 
-1. 在 Ubuntu 本地配置 DeepSeek、Cloudflare 和企业微信客服凭据。
+1. 在 CentOS 本地配置 DeepSeek、Cloudflare 和企业微信客服凭据。
 2. 完成真实 DeepSeek 长文验收和微信文字/链接/文件/音视频端到端验收。
 3. 配对 Windows 与安卓 Syncthing，完成离线冲突、重启、备份和恢复演练。
-4. 将验证证据补入 [Ubuntu 部署记录](docs/ubuntu-deployment.md) 后再启用生产服务。
+4. 将验证证据补入 [CentOS 部署记录](docs/centos-deployment.md) 后再启用生产服务。
 
 ## Excel 解析边界
 
