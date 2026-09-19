@@ -1,6 +1,6 @@
 # 服务器运行与恢复
 
-目标 CentOS Stream/RHEL-compatible 9 或 10，入口先只监听 `127.0.0.1:8787`。以下脚本已通过本地测试，真实服务器验收结果单独记录在 `centos-deployment.md`，不能将脚本存在视为部署完成。
+目标 Ubuntu 24.04，入口先只监听 `127.0.0.1:8787`。以下脚本已通过本地测试，真实服务器验收结果单独记录在 `ubuntu-deployment.md`，不能将脚本存在视为部署完成。
 
 ## 目录和部署
 
@@ -14,7 +14,7 @@
 | `/etc/knowledge-manager` | 仅在服务器配置的运行设置和凭证 |
 | `/var/backups/knowledge-manager` | 本机备份及 SHA-256 清单 |
 
-将 Git 发布归档解压到新的 release 路径后，执行 `sudo sh scripts/install_centos.sh`。不要将真实资料、模型、运行配置或密钥提交到 Git。安装脚本保留既有数据和配置，先核验候选服务配置、暂停备份调度和所有写入者、取得备份锁并创建已验证归档，再切换程序。主应用健康检查通过后才启动已配置的微信回调。
+将 Git 发布归档解压到新的 release 路径后，执行 `sudo sh scripts/install_ubuntu.sh`。不要将真实资料、模型、运行配置或密钥提交到 Git。安装脚本保留既有数据和配置，先核验候选服务配置、暂停备份调度和所有写入者、取得备份锁并创建已验证归档，再切换程序。主应用健康检查通过后才启动已配置的微信回调。
 
 激活失败会恢复此前程序链接与服务文件，停止并禁用应用、回调和备份定时器，防止重启后旧代码自动操作可能已迁移的数据。先按错误中给出的升级前归档进行恢复演练并核对数据库；确认兼容性或恢复到旧数据后，显式重新启用相应服务。涉及数据库结构变化时不能仅靠代码回退。正式部署、正常版本升级和独立数据恢复已实测；当前仍须完成部署后的整机重启等验收，具体证据见验证记录。
 
@@ -41,7 +41,7 @@ sudo journalctl -u knowledge-manager-backup.service -n 30 --no-pager
 
 备份先暂停微信回调，再暂停 `syncthing@knowledge-manager.service`，最后暂停应用，归档 Vault、附件、数据库和配置，核对每个文件的哈希后发布压缩包。保留策略保留最近 24 个小时点、30 个日点、12 个周点评级、升级标记归档和最新已验证归档；没有校验清单的文件不会被删除。完成、失败或普通取消后按原状态恢复；原先关闭的服务保持关闭。断电或强制终止无法保证执行清理，应在开机后检查服务状态。新增写入程序必须通过 `--companion-service` 纳入暂停范围。
 
-Syncthing 以 `syncthing@knowledge-manager.service` 运行，只共享 `/srv/knowledge-manager/vault`，通过 Tailscale 配对 Windows 与安卓。CentOS 使用 `scripts/install_syncthing_centos.sh` 安装和渲染配置；启用前运行 `scripts/check_syncthing.py`，确认设备、文件哈希、版本保留和冲突状态；备份会先暂停该服务。微信回调使用独立的 `knowledge-manager-wechat.service`，仅监听 `127.0.0.1:8766`。Cloudflare Tunnel 只转发 `/wechat/callback`，最终规则为 404，不能把管理面或 Vault 作为 upstream。先用 `scripts/check_public_entry.py` 检查本地配置，再启用 `cloudflared-knowledge-manager.service`。默认没有 `/etc/knowledge-manager/wechat.enabled` 标记且 `WECHAT_ENABLED=false`，不会启动回调。填妥服务器本地 `server.env` 中的官方账号设置及白名单，完成配置校验后，创建标记文件并启用回调服务；主应用重启后加载后台收发 worker。回调关闭访问日志，避免验签参数进入请求日志。反向代理亦应关闭该路径的查询参数日志。没有真实账号的收发验收不能视为接通微信。
+Syncthing 以 `syncthing@knowledge-manager.service` 运行，只共享 `/srv/knowledge-manager/vault`，通过 Tailscale 配对 Windows 与安卓。启用前运行 `scripts/check_syncthing.py`，确认设备、文件哈希、版本保留和冲突状态；备份会先暂停该服务。微信回调使用独立的 `knowledge-manager-wechat.service`，仅监听 `127.0.0.1:8766`。Cloudflare Tunnel 只转发 `/wechat/callback`，最终规则为 404，不能把管理面或 Vault 作为 upstream。先用 `scripts/check_public_entry.py` 检查本地配置，再启用 `cloudflared-knowledge-manager.service`。默认没有 `/etc/knowledge-manager/wechat.enabled` 标记且 `WECHAT_ENABLED=false`，不会启动回调。填妥服务器本地 `server.env` 中的官方账号设置及白名单，完成配置校验后，创建标记文件并启用回调服务；主应用重启后加载后台收发 worker。回调关闭访问日志，避免验签参数进入请求日志。反向代理亦应关闭该路径的查询参数日志。没有真实账号的收发验收不能视为接通微信。
 
 配置可能含凭证，因此备份保持私有权限。Windows 宿主机现以专用 SYSTEM 任务，每小时把最新完整归档复制到 `D:\KnowledgeManagerBackups`，校验大小和 SHA，并保留至少 5 GiB 空闲空间。D: 和 Ubuntu 所在 E: 已确认为不同物理硬盘，且从 D: 副本恢复的实机演练通过。参见 [第二盘备份](second-disk-backup.md)。两块盘仍在同一台电脑内；整机丢失或损坏需要另行设置外部备份。
 
