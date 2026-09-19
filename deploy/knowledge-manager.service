@@ -1,0 +1,27 @@
+[Unit]
+Description=Local knowledge ingestion and Obsidian storage
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=knowledge-manager
+Group=knowledge-manager
+WorkingDirectory=/opt/knowledge-manager/current
+EnvironmentFile=/etc/knowledge-manager/server.env
+Environment=PYTHONUNBUFFERED=1
+Environment=HOME=/var/lib/knowledge-manager
+ExecStart=/opt/knowledge-manager/current/.venv/bin/python scripts/run_server.py
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=180
+UMask=0077
+StateDirectory=knowledge-manager
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/srv/knowledge-manager
+
+[Install]
+WantedBy=multi-user.target
