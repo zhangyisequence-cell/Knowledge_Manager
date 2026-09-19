@@ -103,10 +103,30 @@ def test_common_audio_upload_reaches_transcriber_and_preserves_original(
     assert item.metadata["transcription_review_required"] is True
     note_text = note.read_text("utf-8")
     frontmatter = yaml.safe_load(note_text.split("---", 2)[1])
+    assert item.source_type == "local_file"
+    assert frontmatter["source"] == "local_file"
+    assert pipeline.database.list_items()[0]["source_type"] == "local_file"
     assert frontmatter["transcription_review_required"] is True
     assert frontmatter["transcription_engine"] == "faster-whisper"
     assert "## 转写文本\n\n> 自动转写，未经人工复核" in note_text
     assert next(config.vault_dir.rglob(f"*{suffix}")).read_bytes() == path.read_bytes()
+
+
+@pytest.mark.parametrize("suffix", [".wav", ".mp4", ".amr"])
+def test_wechat_file_origin_reaches_media_note(tmp_path, monkeypatch, suffix):
+    pipeline, _ = make_pipeline(tmp_path)
+    job, _ = media_job(tmp_path, suffix)
+    job.payload["source_type"] = "wechat"
+
+    class Model:
+        def transcribe(self, received, **kwargs):
+            return iter([SimpleNamespace(text="保持原始转写。")]), None
+
+    monkeypatch.setattr(Transcriber, "_model", staticmethod(Model))
+    item, note = asyncio.run(pipeline.process(job))
+    assert item.source_type == "wechat"
+    assert yaml.safe_load(note.read_text("utf-8").split("---", 2)[1])["source"] == "wechat"
+    assert pipeline.database.list_items()[0]["source_type"] == "wechat"
 
 
 def test_pinned_model_provenance_does_not_claim_confidence(tmp_path, monkeypatch):

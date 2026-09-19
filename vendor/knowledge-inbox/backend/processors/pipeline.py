@@ -121,7 +121,18 @@ class ContentPipeline:
             if not path or not path.exists():
                 raise FileNotFoundError(f"上传文件不存在: {path}")
             adapter = self.registry.for_file(path)
-            item = adapter.normalize(await adapter.fetch(path, title=title))
+            item = adapter.normalize(await adapter.fetch(
+                path, title=title, source_type=job.payload.get("source_type")
+            ))
+            # A local media path is routed through WeChatVideoAdapter for codec
+            # handling, but that routing choice is not its ingress provenance.
+            # Keep an explicit WeChat hint and otherwise record a local upload.
+            if item.source_type == "wechat_video":
+                item.source_type = (
+                    "wechat"
+                    if job.payload.get("source_type") == "wechat"
+                    else "local_file"
+                )
             item.source_url = job.payload.get("source_url")
             return item
         raise ValueError(f"未知输入类型: {job.input_type}")

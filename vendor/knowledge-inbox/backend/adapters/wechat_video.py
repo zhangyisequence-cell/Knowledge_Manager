@@ -35,8 +35,11 @@ class WeChatVideoAdapter(SourceAdapter):
                 or header.startswith((b"#!SILK_V3", b"\x02#!SILK_V3"))
             ):
                 raise ValueError("SILK 音频暂不支持；请在微信接口选择 AMR，或先转换为 WAV/MP3")
+            # This adapter also handles ordinary local audio/video files. Only
+            # an explicit intake origin can identify them as WeChat material.
+            source_type = "wechat" if kwargs.get("source_type") == "wechat" else "local_file"
             return FetchedContent(
-                source_type=self.source_type,
+                source_type=source_type,
                 title=kwargs.get("title") or value.stem,
                 media_files=[str(value)],
                 metadata={"capture_mode": "uploaded_file"},

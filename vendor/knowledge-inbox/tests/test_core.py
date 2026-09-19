@@ -385,6 +385,7 @@ def test_wechat_video_adapter_uses_local_downloader(tmp_path: Path, monkeypatch)
         WeChatVideoAdapter(config).fetch("https://weixin.qq.com/sph/example")
     )
     assert fetched.title == "真实视频"
+    assert fetched.source_type == "wechat_video"
     assert fetched.media_files == [str(video_path.resolve())]
 
 
