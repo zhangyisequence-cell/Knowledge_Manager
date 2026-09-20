@@ -1,0 +1,5 @@
+ingress:
+  - hostname: inbox.example.test
+    path: /wechat/callback
+    service: http://127.0.0.1:8766
+  - service: http_status:404

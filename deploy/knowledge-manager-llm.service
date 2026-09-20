@@ -1,0 +1,36 @@
+[Unit]
+Description=Local CPU language model for Knowledge Manager
+ConditionPathExists=/etc/knowledge-manager/local-ai.enabled
+ConditionPathExists=/srv/knowledge-manager/model-cache/hub/models--Qwen--Qwen2.5-1.5B-Instruct-GGUF/snapshots/91cad51170dc346986eccefdc2dd33a9da36ead9/qwen2.5-1.5b-instruct-q4_k_m.gguf
+After=local-fs.target
+
+[Service]
+Type=simple
+User=knowledge-manager
+Group=knowledge-manager
+Environment=HOME=/var/lib/knowledge-manager
+ExecStart=/opt/knowledge-manager/llama/b29c606e28a01b1bc8c1351026a0fa6e616bf6c4/bin/llama-server \
+    --model /srv/knowledge-manager/model-cache/hub/models--Qwen--Qwen2.5-1.5B-Instruct-GGUF/snapshots/91cad51170dc346986eccefdc2dd33a9da36ead9/qwen2.5-1.5b-instruct-q4_k_m.gguf \
+    --alias qwen2.5-1.5b-instruct-q4-k-m \
+    --host 127.0.0.1 \
+    --port 8080 \
+    --ctx-size 8192 \
+    --threads 2 \
+    --threads-batch 2 \
+    --parallel 1 \
+    --cache-type-k q8_0 \
+    --cache-type-v q8_0 \
+    --batch-size 512 \
+    --ubatch-size 128 \
+    --load-mode mmap
+Restart=no
+TimeoutStopSec=30
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,2 @@
+-e ./vendor/knowledge-inbox[dev,media]
+reportlab>=4,<6

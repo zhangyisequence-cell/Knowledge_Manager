@@ -1,0 +1,16 @@
+.venv/
+runtime/
+.env
+.env.*
+!.env.example
+config.local.yaml
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+*.py[cod]
+*.log
+*.pem
+*.key
+*.p12
+*.sqlite*
