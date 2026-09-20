@@ -18,6 +18,15 @@ WECHAT_ALLOWED_SENDERS=<允许发送资料的用户标识，逗号分隔>
 
 `WECHAT_ALLOWED_ACCOUNTS` 和 `WECHAT_ALLOWED_SENDERS` 必须明确填写，系统不会默认放行所有账号。配置完整后先保持 `WECHAT_ENABLED=false`，验证回调入口和 Cloudflare 路由，再切换为 `true`。
 
+推荐在 Ubuntu 本地终端使用交互式配置脚本，避免把 Secret、Token 或 AES Key 放在命令行历史中：
+
+```sh
+sudo /opt/knowledge-manager/current/.venv/bin/python \
+  /opt/knowledge-manager/current/scripts/configure_wechat.py
+```
+
+脚本会隐藏四个秘密字段，原子写入 `/etc/knowledge-manager/server.env`（权限 `0600`），保留其他设置，并强制保持 `WECHAT_ENABLED=false`、删除 `wechat.enabled` 标记。完成公网回调检查和真实收发验收后，再按发布流程显式启用微信服务。
+
 ## 公网回调
 
 Cloudflare Tunnel 只允许下面这一条路由：
@@ -53,3 +62,4 @@ sudo /opt/knowledge-manager/current/.venv/bin/python \
 - 主服务管理 API、Vault、SQLite 和 Syncthing GUI 不通过 Cloudflare 暴露。
 - 回调请求有签名、时间窗、请求体大小、账号白名单和重复通知幂等校验。
 - 任何真实凭据和资料都不能提交到 GitHub。
+
