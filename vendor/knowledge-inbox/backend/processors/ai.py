@@ -16,18 +16,11 @@ from backend.config import AIConfig
 from backend.models import ContentItem
 
 SYSTEM_PROMPT = """你是个人知识库编辑。根据输入内容输出严格 JSON，不要 Markdown 代码围栏。
-字段：
 summary: 一句话总结，不超过 80 字；
 core_points: 3-7 条核心观点字符串数组；
-key_data: 关键数字、事实、原句摘录组成的字符串数组；
-actions: 可行动事项字符串数组；
-category: 一个稳定、简短的中文分类；
-tags: 3-8 个中文或英文标签，不要井号；
 keywords: 3-10 个关键词；
 importance_score: 0 到 1 的数字；
-media_description: 若有图片或视频，描述画面、图表关系、重要文字和音视频内容，否则为空字符串；
 evidence: 可核验依据对象数组，每项含 claim、quote、chunk_id。
-忠于原文；证据不足时明确写“原文未提供”，不要臆测。"""
 
 # Character budget, not a tokenizer claim. Deploy with an >=8192-token context;
 # providers must report context/output errors rather than silently truncate input.
@@ -163,10 +156,9 @@ class AIProcessor:
             "max_tokens": 1024,
             "response_format": {"type": "json_object"},
             "messages": [
-                {"role": "system", "content": "你是有证据约束的知识库汇总器，只能引用输入证据。"},
+                {"role": "system", "content": "你是有证据约束的知识库汇总器，只能引用输入证据，并返回严格 JSON。"},
                 {"role": "user", "content": prompt},
             ],
-            "metadata": {"request_type": "summary"},
         }
         headers = {"Content-Type": "application/json"}
         if self.config.api_key.strip():
