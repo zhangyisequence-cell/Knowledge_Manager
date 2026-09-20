@@ -1,6 +1,7 @@
 """Real routing, pipeline and vault writes; model calls never download or contact a service."""
 
 import asyncio
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -127,6 +128,40 @@ def test_wechat_file_origin_reaches_media_note(tmp_path, monkeypatch, suffix):
     assert item.source_type == "wechat"
     assert yaml.safe_load(note.read_text("utf-8").split("---", 2)[1])["source"] == "wechat"
     assert pipeline.database.list_items()[0]["source_type"] == "wechat"
+
+
+def test_video_empty_direct_transcript_retries_with_ffmpeg_audio(
+    tmp_path, monkeypatch,
+):
+    pipeline, _ = make_pipeline(tmp_path)
+    job, path = media_job(tmp_path, ".mp4")
+    received = []
+
+    class Model:
+        def transcribe(self, source, **kwargs):
+            received.append((source, kwargs))
+            if source == str(path):
+                return iter([]), None
+            assert Path(source).suffix == ".wav"
+            return iter([SimpleNamespace(text="视频中的预算12800元。")]), None
+
+    def fake_ffmpeg(command, **kwargs):
+        if command[0] != "ffmpeg":
+            raise FileNotFoundError(command[0])
+        assert command[:5] == ["ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin"]
+        output = Path(command[-1])
+        output.write_bytes(b"synthetic extracted wav" * 4)
+        return SimpleNamespace(returncode=0, stderr="", stdout="")
+
+    monkeypatch.setattr(Transcriber, "_model", staticmethod(Model))
+    monkeypatch.setattr("backend.processors.transcriber.shutil.which", lambda name: "ffmpeg")
+    monkeypatch.setattr("backend.processors.transcriber.subprocess.run", fake_ffmpeg)
+    item, _ = asyncio.run(pipeline.process(job))
+
+    assert item.transcript == "视频中的预算12800元。"
+    assert received[0][0] == str(path)
+    assert Path(received[1][0]).suffix == ".wav"
+    assert received[0][1] == {"vad_filter": True, "beam_size": 5}
 
 
 def test_pinned_model_provenance_does_not_claim_confidence(tmp_path, monkeypatch):

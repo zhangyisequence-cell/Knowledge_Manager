@@ -3,6 +3,9 @@ from __future__ import annotations
 import asyncio
 import os
 import re
+import shutil
+import subprocess
+import tempfile
 from functools import lru_cache
 from pathlib import Path
 
@@ -38,6 +41,7 @@ class Transcriber:
         ".webm",
         ".wma",
     }
+    _video_suffixes = {".avi", ".m4v", ".mkv", ".mov", ".mp4", ".webm"}
 
     @classmethod
     def supports_file(cls, path: Path) -> bool:
@@ -92,5 +96,61 @@ class Transcriber:
         model = cls._model()
         if model is None:
             return None
+        transcript = cls._transcribe_path(model, path)
+        if transcript or path.suffix.lower() not in cls._video_suffixes:
+            return transcript
+        return cls._transcribe_video_audio(model, path)
+
+    @classmethod
+    def _transcribe_path(cls, model, path: Path) -> str | None:
         segments, _ = model.transcribe(str(path), **cls._decoding_options)
-        return "\n".join(segment.text.strip() for segment in segments if segment.text.strip())
+        transcript = "\n".join(
+            segment.text.strip() for segment in segments if segment.text.strip()
+        )
+        return transcript or None
+
+    @classmethod
+    def _transcribe_video_audio(cls, model, path: Path) -> str | None:
+        """Retry video transcription through a normalized PCM audio stream.
+
+        Some MP4/AMR combinations expose a valid audio stream to ffmpeg but do
+        not yield frames through the PyAV path used by faster-whisper. Keep the
+        original file untouched and use a short-lived WAV only for the retry.
+        """
+        ffmpeg = shutil.which("ffmpeg")
+        if not ffmpeg:
+            return None
+        try:
+            with tempfile.TemporaryDirectory(prefix="knowledge-manager-transcribe-") as directory:
+                audio = Path(directory) / "audio.wav"
+                result = subprocess.run(
+                    [
+                        ffmpeg,
+                        "-hide_banner",
+                        "-loglevel",
+                        "error",
+                        "-nostdin",
+                        "-y",
+                        "-i",
+                        str(path),
+                        "-map",
+                        "0:a:0",
+                        "-vn",
+                        "-ac",
+                        "1",
+                        "-ar",
+                        "16000",
+                        "-c:a",
+                        "pcm_s16le",
+                        str(audio),
+                    ],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=180,
+                )
+                if result.returncode != 0 or not audio.is_file() or audio.stat().st_size <= 44:
+                    return None
+                return cls._transcribe_path(model, audio)
+        except (OSError, subprocess.SubprocessError):
+            return None
