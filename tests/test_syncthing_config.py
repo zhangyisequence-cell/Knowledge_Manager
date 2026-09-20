@@ -26,6 +26,33 @@ def test_generated_config_shares_only_vault_with_staggered_versioning(tmp_path):
     assert folders[0].attrib["path"] == str(vault.resolve())
     assert folders[0].find("versioning").attrib["type"] == "staggered"
     assert folders[0].find("versioning/param").attrib["value"] == "2592000"
+    root_devices = {node.attrib["id"] for node in root.findall("device")}
+    assert root_devices == {"WIN-DEVICE", "ANDROID-DEVICE"}
+
+
+def test_generated_config_can_pin_devices_to_tailscale_addresses(tmp_path):
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    path = tmp_path / "config.xml"
+    path.write_text(
+        render_config(
+            vault,
+            ["WIN-DEVICE"],
+            {"WIN-DEVICE": "tcp://100.64.186.105:22000"},
+        ),
+        encoding="utf-8",
+    )
+    root = ET.parse(path).getroot()
+    device = root.find("device")
+    assert device is not None
+    assert device.findtext("address") == "tcp://100.64.186.105:22000"
+
+
+def test_generated_config_rejects_address_for_unknown_device(tmp_path):
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    with pytest.raises(ValueError, match="设备地址"):
+        render_config(vault, ["WIN-DEVICE"], {"OTHER": "tcp://100.64.186.105:22000"})
 
 
 def test_ignore_rules_keep_notes_attachments_and_settings(tmp_path):
