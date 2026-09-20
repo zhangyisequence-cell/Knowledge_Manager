@@ -93,6 +93,7 @@ class ContentPipeline:
         )
         for field in (
             "analysis_mode",
+            "analysis_provider",
             "analysis_label",
             "model",
             "coverage",
