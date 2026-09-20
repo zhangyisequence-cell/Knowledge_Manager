@@ -7,6 +7,7 @@ Ubuntu Vault `/srv/knowledge-manager/vault` 是唯一主数据源。数据库、
 - Ubuntu Syncthing 服务已启用。
 - Windows 已安装 Syncthing，使用 `C:\Users\Administrator\Documents\Obsidian\KnowledgeVault`。
 - Ubuntu 与 Windows 已通过 Tailscale 直连并完成 Vault 文件同步。
+- 公共发现、Relay、NAT 和局域网发现配置关闭；设备地址使用 Tailscale 地址。
 
 ## Android 配对
 
