@@ -55,6 +55,14 @@ def _stop_if_loaded(run, unit: str) -> None:
         run("systemctl", "stop", unit)
 
 
+def _is_active(run, unit: str) -> bool:
+    """Return whether a loaded unit was active before release quiescing."""
+    try:
+        return run("systemctl", "show", unit, "--property=ActiveState", "--value") == "active"
+    except (OSError, subprocess.CalledProcessError):
+        return False
+
+
 def _verify_candidate(release: Path, candidates: list[Path], run) -> None:
     with tempfile.TemporaryDirectory(prefix="km-unit-verify-") as temporary:
         staged = Path(temporary)
@@ -200,6 +208,7 @@ def activate_release(
     }
     archive = None
     publication_started = False
+    syncthing_was_active = _is_active(run, SYNCTHING)
     _stop_if_loaded(run, "knowledge-manager-backup.timer")
     _stop_if_loaded(run, "knowledge-manager-backup.service")
     lock_context = lock(backup_root / ".backup.lock")
@@ -231,6 +240,8 @@ def activate_release(
         else:
             run("systemctl", "disable", CLOUDFLARE)
         run("systemctl", "start", "knowledge-manager-backup.timer")
+        if syncthing_was_active:
+            run("systemctl", "start", SYNCTHING)
         return archive
     except BaseException as error:
         # Never restart old code automatically: new code may already have migrated data.
@@ -276,3 +287,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
