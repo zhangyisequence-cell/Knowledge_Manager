@@ -37,7 +37,7 @@ Ubuntu Vault `/srv/knowledge-manager/vault` 是唯一主数据源。数据库、
    ```sh
    /opt/knowledge-manager/current/.venv/bin/python \
      /opt/knowledge-manager/current/scripts/check_syncthing.py \
-     --config /var/lib/syncthing/knowledge-manager/config.xml \
+     --config /var/lib/knowledge-manager/.config/syncthing/config.xml \
      --vault /srv/knowledge-manager/vault
    ```
 
