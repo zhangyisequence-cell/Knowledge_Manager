@@ -1,29 +1,29 @@
 # Obsidian 远程同步
 
-服务器 Ubuntu Vault `/srv/knowledge-manager/vault` 是唯一主数据源。数据库、任务队列、API 密钥、模型缓存和备份归档永远不加入同步文件夹。同步链路只经过 Tailscale 私网，Syncthing 的公共发现、Relay 和 NAT 穿透已关闭。
+Ubuntu Vault `/srv/knowledge-manager/vault` 是唯一主数据源。数据库、任务队列、API 密钥、模型缓存和备份归档永远不加入同步文件夹。同步链路只经过 Tailscale 私网。
 
-## 首次配对
+## 已完成
 
-1. 在 Windows 和安卓手机安装 Tailscale，加入同一个账号并确认能看到服务器的 Tailscale 地址。
-2. Windows 安装 Syncthing 与 Obsidian；安卓安装 Syncthing-Fork 与 Obsidian。先不要在客户端创建第二个 Vault。
-3. 在服务器、Windows 和安卓分别打开 Syncthing，互相交换设备 ID。服务器只接受明确提供的 Windows 与 Android 设备 ID。
-4. 服务器共享名为 `Knowledge Vault` 的 Send & Receive 文件夹；Windows 选择 Obsidian Vault 目录，安卓选择本地专用 Vault 目录。两端都接受 `.stignore` 后再开始同步。
-5. 用一份测试 Markdown 和一个附件分别验证服务器→客户端、Windows→服务器、安卓→服务器的文件哈希一致，再打开日常使用。
+- Ubuntu Syncthing 服务已启用。
+- Windows 已安装 Syncthing，使用 `C:\Users\Administrator\Documents\Obsidian\KnowledgeVault`。
+- Ubuntu 与 Windows 已通过 Tailscale 直连并完成 Vault 文件同步。
 
-`.obsidian/workspace*.json`、缓存、回收站和 Syncthing 标记文件被忽略；Markdown、附件和其他 Obsidian 设置保留。不要把 `/srv/knowledge-manager` 的上级目录作为共享目录。
+## Android 配对
 
-## 冲突和离线编辑
+1. 在 Android 安装 Tailscale 和 Syncthing-Fork，加入同一个 Tailnet。
+2. 打开 Syncthing-Fork 的设备信息，取得 Android 设备 ID；不要把设备 ID 或截图发到聊天。
+3. 在 Ubuntu 上用 Android 设备 ID 重新运行配置脚本，并指定 Android 的 Tailscale 地址：
 
-服务器端启用 30 天 staggered versioning。两台设备离线同时修改同一 Markdown 时，先保留 Syncthing 产生的冲突文件和服务器历史版本，再人工合并；不要直接覆盖冲突文件。服务器 Vault 与经过校验的备份是恢复依据。
+   ```sh
+   sudo sh /opt/knowledge-manager/current/scripts/install_syncthing_ubuntu.sh \
+     --windows-device-id '<已配置的 Windows 设备 ID>' \
+     --windows-address 'tcp://100.64.186.105:22000' \
+     --android-device-id '<在 Ubuntu 当前终端输入 Android 设备 ID>' \
+     --android-address 'tcp://<Android Tailscale 地址>:22000'
+   sudo systemctl restart syncthing@knowledge-manager.service
+   ```
 
-## 检查
+4. Android 端只接受 `Knowledge Vault` 文件夹，目录中保留 `.stignore`。不要把 `/srv/knowledge-manager` 的上级目录作为共享目录。
+5. 用 `scripts/check_syncthing.py` 检查文件夹路径、设备列表、版本保留和冲突状态。
 
-服务器执行配置检查时只提供本地 API key，不把 key 或设备 ID 写入日志：
-
-```sh
-sudo /opt/knowledge-manager/current/.venv/bin/python scripts/check_syncthing.py \
-  --config /var/lib/knowledge-manager/.config/syncthing/config.xml \
-  --vault /srv/knowledge-manager/vault
-```
-
-检查报告必须显示只有一个 Vault 文件夹、Send & Receive、30 天版本保留、Tailscale 私网管理和无冲突。设备离线、文件哈希未收敛或出现意外共享路径都视为未通过。
+`.obsidian/workspace*.json`、缓存、回收站和 Syncthing 标记文件被忽略；Markdown、附件和其他 Obsidian 设置保留。
