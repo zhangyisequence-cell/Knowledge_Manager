@@ -57,11 +57,10 @@ def render_config(
     ET.SubElement(versioning, "param", {"key": "maxAge", "val": VERSIONING_MAX_AGE})
     for device_id in devices:
         ET.SubElement(folder, "device", {"id": device_id, "introducedBy": ""})
-    ET.SubElement(root, "options", {
-        "globalAnnounceEnabled": "false",
-        "relaysEnabled": "false",
-        "natEnabled": "false",
-    })
+    options = ET.SubElement(root, "options")
+    # Syncthing stores these settings as child elements, not attributes.
+    for key in ("globalAnnounceEnabled", "localAnnounceEnabled", "relaysEnabled", "natEnabled"):
+        ET.SubElement(options, key).text = "false"
     ET.indent(root, space="  ")
     return ET.tostring(root, encoding="unicode") + "\n"
 
@@ -113,8 +112,12 @@ def validate_config(path: Path, vault: Path, device_ids: Iterable[str] = ()) -> 
     if param is None or param.attrib.get("val") != VERSIONING_MAX_AGE:
         raise ValueError("Syncthing 版本保留必须为 30 天")
     options = root.find("options")
-    if options is None or any(options.attrib.get(key) != "false" for key in (
-        "globalAnnounceEnabled", "relaysEnabled", "natEnabled"
+    def option_value(key: str) -> str | None:
+        child = options.find(key) if options is not None else None
+        return child.text if child is not None else (options.attrib.get(key) if options is not None else None)
+
+    if options is None or any(option_value(key) != "false" for key in (
+        "globalAnnounceEnabled", "localAnnounceEnabled", "relaysEnabled", "natEnabled"
     )):
         raise ValueError("Syncthing 公共发现、Relay 和 NAT 必须关闭")
     configured = {node.attrib.get("id") for node in folder.findall("device")}

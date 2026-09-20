@@ -28,6 +28,12 @@ def test_generated_config_shares_only_vault_with_staggered_versioning(tmp_path):
     assert folders[0].find("versioning/param").attrib["val"] == "2592000"
     root_devices = {node.attrib["id"] for node in root.findall("device")}
     assert root_devices == {"WIN-DEVICE", "ANDROID-DEVICE"}
+    options = root.find("options")
+    assert options is not None
+    assert options.findtext("globalAnnounceEnabled") == "false"
+    assert options.findtext("localAnnounceEnabled") == "false"
+    assert options.findtext("relaysEnabled") == "false"
+    assert options.findtext("natEnabled") == "false"
 
 
 def test_generated_config_can_pin_devices_to_tailscale_addresses(tmp_path):
@@ -83,7 +89,7 @@ def test_config_rejects_public_discovery_and_missing_device(tmp_path):
     config = tmp_path / "config.xml"
     config.write_text(render_config(vault, ["WIN-DEVICE"]), encoding="utf-8")
     root = ET.parse(config)
-    root.getroot().find("options").set("relaysEnabled", "true")
+    root.getroot().find("options").find("relaysEnabled").text = "true"
     root.write(config, encoding="unicode")
     with pytest.raises(ValueError, match="公共"):
         validate_config(config, vault, ["ANDROID-DEVICE"])
