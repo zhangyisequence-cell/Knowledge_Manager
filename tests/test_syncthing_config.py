@@ -25,7 +25,7 @@ def test_generated_config_shares_only_vault_with_staggered_versioning(tmp_path):
     assert len(folders) == 1
     assert folders[0].attrib["path"] == str(vault.resolve())
     assert folders[0].find("versioning").attrib["type"] == "staggered"
-    assert folders[0].find("versioning/param").attrib["value"] == "2592000"
+    assert folders[0].find("versioning/param").attrib["val"] == "2592000"
     root_devices = {node.attrib["id"] for node in root.findall("device")}
     assert root_devices == {"WIN-DEVICE", "ANDROID-DEVICE"}
 

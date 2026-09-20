@@ -53,7 +53,8 @@ def render_config(
     })
     folder = root.find("folder")
     versioning = ET.SubElement(folder, "versioning", {"type": "staggered"})
-    ET.SubElement(versioning, "param", {"key": "maxAge", "value": VERSIONING_MAX_AGE})
+    # Syncthing's native XML schema names the parameter value `val`.
+    ET.SubElement(versioning, "param", {"key": "maxAge", "val": VERSIONING_MAX_AGE})
     for device_id in devices:
         ET.SubElement(folder, "device", {"id": device_id, "introducedBy": ""})
     ET.SubElement(root, "options", {
@@ -109,7 +110,7 @@ def validate_config(path: Path, vault: Path, device_ids: Iterable[str] = ()) -> 
     if versioning is None or versioning.attrib.get("type") != "staggered":
         raise ValueError("Syncthing 必须启用 staggered 版本保留")
     param = versioning.find("param[@key='maxAge']")
-    if param is None or param.attrib.get("value") != VERSIONING_MAX_AGE:
+    if param is None or param.attrib.get("val") != VERSIONING_MAX_AGE:
         raise ValueError("Syncthing 版本保留必须为 30 天")
     options = root.find("options")
     if options is None or any(options.attrib.get(key) != "false" for key in (
