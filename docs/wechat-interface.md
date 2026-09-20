@@ -31,8 +31,10 @@ https://<你的域名>/wechat/callback -> http://127.0.0.1:8766/wechat/callback
 ```sh
 sudo sh /opt/knowledge-manager/current/scripts/install_cloudflared_tunnel.sh \
   --hostname '<你的域名>' \
-  --token '<在当前终端输入，不要发送到聊天>'
+  --token-stdin
 ```
+
+执行后在当前终端输入 Token；输入内容不会显示，也不会出现在命令行参数、Git 或日志中。
 
 安装脚本会把 token 写入 `/etc/knowledge-manager/cloudflared/token`，权限为 `0600`。安装后运行：
 

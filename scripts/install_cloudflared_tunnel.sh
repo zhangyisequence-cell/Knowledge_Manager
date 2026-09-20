@@ -4,6 +4,7 @@ set -eu
 check_only=false
 hostname=
 token=
+token_stdin=false
 credentials=
 config_dir=/etc/knowledge-manager/cloudflared
 while [ "$#" -gt 0 ]; do
@@ -11,6 +12,7 @@ while [ "$#" -gt 0 ]; do
         --check-only) check_only=true ;;
         --hostname) hostname=$2; shift ;;
         --token) token=$2; shift ;;
+        --token-stdin) token_stdin=true ;;
         --credentials-file) credentials=$2; shift ;;
         --config-dir) config_dir=$2; shift ;;
         *) echo "Unknown option: $1" >&2; exit 2 ;;
@@ -31,8 +33,24 @@ if [ "$check_only" = true ]; then
     echo "check-only: hostname=$hostname config=$config_dir"
     exit 0
 fi
+if [ "$token_stdin" = true ] && { [ -n "$token" ] || [ -n "$credentials" ]; }; then
+    echo '--token-stdin cannot be combined with --token or --credentials-file.' >&2
+    exit 1
+fi
+if [ "$token_stdin" = true ]; then
+    if [ -t 0 ] && [ -t 2 ]; then
+        printf 'Cloudflare tunnel token (input hidden): ' >&2
+        terminal_state=$(stty -g)
+        stty -echo
+        IFS= read -r token || true
+        stty "$terminal_state"
+        printf '\n' >&2
+    else
+        IFS= read -r token || true
+    fi
+fi
 if [ -z "$token" ] && [ -z "$credentials" ]; then
-    echo 'Provide a local tunnel token or credentials file path.' >&2
+    echo 'Provide --token-stdin or a local credentials file path.' >&2
     exit 1
 fi
 command -v cloudflared >/dev/null 2>&1 || {
