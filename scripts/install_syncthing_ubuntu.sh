@@ -6,6 +6,8 @@ vault=/srv/knowledge-manager/vault
 config_dir=/var/lib/knowledge-manager/.config/syncthing
 windows_id=
 android_id=
+windows_address=
+android_address=
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --check-only) check_only=true ;;
@@ -13,6 +15,8 @@ while [ "$#" -gt 0 ]; do
         --config-dir) config_dir=$2; shift ;;
         --windows-device-id) windows_id=$2; shift ;;
         --android-device-id) android_id=$2; shift ;;
+        --windows-address) windows_address=$2; shift ;;
+        --android-address) android_address=$2; shift ;;
         *) echo "Unknown option: $1" >&2; exit 2 ;;
     esac
     shift
@@ -54,7 +58,7 @@ if ! command -v syncthing >/dev/null 2>&1; then
 fi
 install -d -o knowledge-manager -g knowledge-manager -m 0700 "$config_dir"
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-PYTHONPATH="$script_dir" python3 - "$vault" "$config_dir" "$windows_id" "$android_id" <<'PY'
+PYTHONPATH="$script_dir" python3 - "$vault" "$config_dir" "$windows_id" "$android_id" "$windows_address" "$android_address" <<'PY'
 import sys
 from pathlib import Path
 from syncthing_config import render_config, write_atomic, write_stignore
@@ -62,7 +66,12 @@ from syncthing_config import render_config, write_atomic, write_stignore
 vault = Path(sys.argv[1])
 config_dir = Path(sys.argv[2])
 ids = [value for value in sys.argv[3:5] if value]
-write_atomic(config_dir / "config.xml", render_config(vault, ids), 0o600)
+addresses = {
+    device_id: address
+    for device_id, address in zip(ids, sys.argv[5:7], strict=False)
+    if address
+}
+write_atomic(config_dir / "config.xml", render_config(vault, ids, addresses), 0o600)
 write_stignore(vault)
 PY
 chown -R knowledge-manager:knowledge-manager "$config_dir" "$vault/.stignore"
