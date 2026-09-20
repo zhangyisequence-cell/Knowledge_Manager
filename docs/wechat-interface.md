@@ -1,38 +1,44 @@
-# 微信接口选型与实际限制
 
-用户已选择“公众号或微信客服”方向。为了接收 Word、PDF、Excel 等文件，优先采用官方微信客服 API；是否已拥有可配置账号，仍等待用户提供。本文不是接入成功证明。
 
-核实来源（2026-09-18）：
 
-- [接收消息和事件](https://developer.work.weixin.qq.com/document/path/94670)
-- [发送消息](https://developer.work.weixin.qq.com/document/path/94677)
+凭据只写入 Ubuntu 的 `/etc/knowledge-manager/server.env`，不要写入 Git、聊天或日志。需要填写的变量如下：
 
-## 数据流
+```text
+WECHAT_ENABLED=false
+WECHAT_CORP_ID=<客服所属企业的 CorpID>
+WECHAT_SECRET=<客服应用 Secret>
+WECHAT_CALLBACK_TOKEN=<微信客服回调 Token>
+WECHAT_ENCODING_AES_KEY=<微信客服回调 EncodingAESKey>
+WECHAT_ALLOWED_ACCOUNTS=<允许接收的 open_kfid，逗号分隔>
+WECHAT_ALLOWED_SENDERS=<允许发送资料的用户标识，逗号分隔>
+```
 
-微信回调只通知有新消息。服务器验签、解密后，将同步请求持久化并尽快应答，再调用 `kf/sync_msg` 取得文字、链接和媒体 ID。原件下载到服务器后才提交解析任务。微信不做解析，Obsidian 不依赖微信保存原文。
+`WECHAT_ALLOWED_ACCOUNTS` 和 `WECHAT_ALLOWED_SENDERS` 必须明确填写，系统不会默认放行所有账号。配置完整后先保持 `WECHAT_ENABLED=false`，验证回调入口和 Cloudflare 路由，再切换为 `true`。
 
-每个客服账号持久化 `next_cursor`，按 `has_more` 翻页，即使消息列表为空也不能忽略 `has_more=1`。收到微信客户消息（origin=3）才建立资料任务；按客服账号和 msgid 去重，发送者需在授权名单。服务器重启后恢复未完成任务和待发送结果。
 
-输出先合并受理同一发送者的一批资料，待该批任务结束后合并返回标题、分类、摘要、状态和任务编号，避免受理通知耗尽五条回复额度。长结果保存在知识库；微信文本明确提示查看完整笔记，当前尚未实现附件或受控链接返回。不能把规则摘要、未下载的原件或缺失转写标成 AI 分析成功。
+Cloudflare Tunnel 只允许下面这一条路由：
 
-## 平台限制必须保留
+```text
+https://<你的域名>/wechat/callback -> http://127.0.0.1:8766/wechat/callback
+```
 
-- 接收接口只读取最近 3 天内消息，所以原件需及时下载到服务器；不能把微信当永久存储。
-- 官方媒体接收限制：图片 2 MB、语音 2 MB、视频 10 MB、文件 20 MB；超限会变成提示文字。大资料可在微信提交可下载链接，由服务器抓取；不承诺突破微信限制。
-- 返回语音默认 AMR，也可请求 SILK；处理器需要明确支持所选格式，不能直接声称现有 MP3 转写已经覆盖微信语音。
-- 用户主动发消息后 48 小时内最多主动回复 5 条；再次发消息后可继续回复。因此进度不能频繁刷屏，过期结果保留在服务器等待用户查询。
-- 发送文本最长 2048 字节，按 UTF-8 字节控制，不能按中文字数粗略截断。
-- `send_msg` 返回成功不等于最终送达，还要处理发送失败事件。
-- 新接入账号需要配置“可调用接口的应用”和“通过 API 管理的客服账号”；自建应用 secret、企业 ID、客服 ID、回调 Token/AESKey 只在服务器本地配置。
+其他路径统一返回 404。Tunnel 的 token 只在 Ubuntu 本地安装时输入：
 
-## 未完成的真实验收
+```sh
+sudo sh /opt/knowledge-manager/current/scripts/install_cloudflared_tunnel.sh \
+  --hostname '<你的域名>' \
+```
 
-真实账号回调验证、白名单设置、文字/链接/文件/语音/视频收件、结果返回、重复回调、网络失败重试、超限提示、服务重启后的续处理。上述均完成且有实际结果后，才可将微信收发标记为已接入。
+安装脚本会把 token 写入 `/etc/knowledge-manager/cloudflared/token`，权限为 `0600`。安装后运行：
 
-## 当前实现进度（2026-09-19）
+```sh
+sudo /opt/knowledge-manager/current/.venv/bin/python \
+  /opt/knowledge-manager/current/scripts/check_public_entry.py \
+  --config /etc/knowledge-manager/cloudflared/config.yml \
+  --hostname '<你的域名>'
+```
 
-已实现但尚未在公网启用：独立加密回调应用；SQLite 回调通知、同步游标、原始消息、任务映射和回复队列；官方 `kf/sync_msg` 请求及令牌刷新。Cloudflare Tunnel 只路由 `/wechat/callback` 到 `127.0.0.1:8766`，其他路径返回 404，不暴露管理 API。回调会校验时间窗口、接收企业 ID、客服账号和请求体大小；同一客服账号和同步令牌的重复通知保持幂等。同步页全部保存后才推进游标；失败页整体回滚；空页仍按 `has_more` 继续；旧同步不能清除新游标或新通知的待处理状态。发送者不在名单时不会进入解析队列。
 
-任务使用确定性 ID，同一消息重试不会重置已完成任务。后台已接上媒体下载、解析队列与官方 `send_msg`，包含持久化退避、48 小时及五次发送额度、发送失败事件；`accepted` 只表示 API 接受，不表示实际送达。媒体下载有大小限制并原子保存，重启可复用已保存原件；原件路径、大小、类型经过核对。过期或无效的媒体 ID 明确失败，不永久重试。受理与结果按发送者批次持久化，各原始消息映射到对应批次，结果插入与批次关闭在同一事务完成。回复按 UTF-8 控制在 2048 字节内。
 
-运行配置在服务器环境中读取，默认关闭。主应用仅启动一个后台 worker，独立回调服务仅挂载 `/wechat/callback`。仍待用户查询功能、实际账号和 HTTPS 回调部署，以及以上真实收发验收。协议测试使用官方公开及独立合成样本，HTTP 外部请求使用测试替身，没有发送真实微信消息。
+- 回调服务只监听 `127.0.0.1:8766`。
+- 主服务管理 API、Vault、SQLite 和 Syncthing GUI 不通过 Cloudflare 暴露。
