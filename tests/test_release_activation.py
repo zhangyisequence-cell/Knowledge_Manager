@@ -26,7 +26,11 @@ class FakeSystemd:
     def __call__(self, *command):
         self.calls.append(command)
         if command[:2] == ("systemctl", "show"):
-            return "not-found" if self.missing_services else "loaded"
+            if self.missing_services:
+                return "not-found"
+            if any("ActiveState" in part for part in command):
+                return "active"
+            return "loaded"
         if self.fail_start and command == ("systemctl", "start", "knowledge-manager.service"):
             raise RuntimeError("synthetic start failure")
         return ""
@@ -107,6 +111,9 @@ def test_activation_quiesces_backs_up_then_starts_main_before_callback(tmp_path)
         ("health", 9123)
     ) < calls.index(
         ("systemctl", "start", "knowledge-manager-wechat.service")
+    )
+    assert calls.index(("systemctl", "start", "syncthing@knowledge-manager.service")) > calls.index(
+        ("systemctl", "start", "knowledge-manager-backup.timer")
     )
     assert archive.is_file()
     assert current["target"] == release.resolve()
@@ -256,3 +263,4 @@ def test_invalid_cloudflare_marker_aborts_before_stopping_services(tmp_path):
             lock=lambda path: nullcontext(),
         )
     assert not any(call[:2] == ("systemctl", "stop") for call in systemd.calls)
+
