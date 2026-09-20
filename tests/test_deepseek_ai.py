@@ -9,6 +9,7 @@ import pytest
 from backend.config import AIConfig
 from backend.models import ContentItem
 from backend.processors.ai import AIProcessor
+from backend.processors.pipeline import ContentPipeline
 
 
 def _result(chunk_id: str, quote: str = "正文") -> dict:
@@ -42,7 +43,7 @@ def test_deepseek_posts_json_text_only_and_reports_provider(monkeypatch):
     async def handler(request: httpx.Request) -> httpx.Response:
         body = json.loads(request.content)
         requests.append((request, body))
-        if body.get("metadata", {}).get("request_type") == "summary":
+        if body.get("messages", [{}, {}])[1].get("content", "").lstrip().startswith("{"):
             return httpx.Response(200, json={"choices": [{"message": {"content": json.dumps({
                 "summary": "最终摘要", "category": "测试", "tags": ["标签"],
             })}, "finish_reason": "stop"}]})
@@ -76,10 +77,34 @@ def test_deepseek_posts_json_text_only_and_reports_provider(monkeypatch):
     assert requests[0][0].headers["authorization"] == "Bearer secret-token"
     assert requests[0][1]["model"] == "deepseek-chat"
     assert requests[0][1]["response_format"] == {"type": "json_object"}
+    assert "metadata" not in requests[-1][1]
+    assert "JSON" in requests[-1][1]["messages"][0]["content"]
     encoded = json.dumps(requests[0][1], ensure_ascii=False)
     assert "private-video.mp4" not in encoded
     assert "secret-token" not in encoded
     assert "正文" in encoded
+
+
+def test_pipeline_persists_analysis_provider_metadata():
+    item = ContentItem(source_type="text", raw_content="正文")
+    ContentPipeline._apply_analysis(item, {
+        "summary": "摘要",
+        "category": "测试",
+        "tags": ["标签"],
+        "keywords": ["关键词"],
+        "importance_score": 0.5,
+        "core_points": [],
+        "key_data": [],
+        "actions": [],
+        "evidence": [],
+        "analysis_provider": "deepseek",
+        "analysis_mode": "ai",
+        "analysis_label": "AI 分段提取",
+        "model": "deepseek-chat",
+        "coverage": {"total_chunks": 1, "processed_chunks": 1},
+        "complete": True,
+    })
+    assert item.metadata["analysis_provider"] == "deepseek"
 
 
 @pytest.mark.parametrize("status", [401, 400, 402, 429, 500])
