@@ -17,12 +17,31 @@ IGNORE_RULES = """(?d)/.obsidian/workspace.json
 """
 
 
-def render_config(vault: Path, device_ids: Iterable[str]) -> str:
+def render_config(
+    vault: Path,
+    device_ids: Iterable[str],
+    device_addresses: dict[str, str] | None = None,
+) -> str:
     vault = vault.resolve()
-    devices = [value.strip() for value in device_ids if value and value.strip()]
+    devices = list(dict.fromkeys(
+        value.strip() for value in device_ids if value and value.strip()
+    ))
     if not devices:
         raise ValueError("至少需要一个已提供的 Syncthing 设备 ID")
+    addresses = device_addresses or {}
+    if any(device_id not in devices for device_id in addresses):
+        raise ValueError("设备地址只能配置在已提供的设备 ID 上")
     root = ET.Element("configuration", {"version": "37"})
+    # Syncthing requires every remote device to be declared at the root and
+    # referenced again by each shared folder. The folder-only form is accepted
+    # by XML parsers but never establishes a device connection.
+    for device_id in devices:
+        device = ET.SubElement(root, "device", {
+            "id": device_id,
+            "introducedBy": "",
+        })
+        if address := addresses.get(device_id):
+            ET.SubElement(device, "address").text = address
     ET.SubElement(root, "folder", {
         "id": FOLDER_ID,
         "label": "Knowledge Vault",
@@ -35,7 +54,7 @@ def render_config(vault: Path, device_ids: Iterable[str]) -> str:
     folder = root.find("folder")
     versioning = ET.SubElement(folder, "versioning", {"type": "staggered"})
     ET.SubElement(versioning, "param", {"key": "maxAge", "value": VERSIONING_MAX_AGE})
-    for device_id in dict.fromkeys(devices):
+    for device_id in devices:
         ET.SubElement(folder, "device", {"id": device_id, "introducedBy": ""})
     ET.SubElement(root, "options", {
         "globalAnnounceEnabled": "false",
@@ -75,6 +94,11 @@ def validate_config(path: Path, vault: Path, device_ids: Iterable[str] = ()) -> 
     if len(folders) != 1:
         raise ValueError("Syncthing 配置必须只共享一个 Vault 文件夹")
     folder = folders[0]
+    root_devices = {
+        node.attrib.get("id")
+        for node in root.findall("device")
+        if node.attrib.get("id")
+    }
     if folder.attrib.get("id") != FOLDER_ID:
         raise ValueError("Syncthing 共享文件夹 ID 不正确")
     if Path(folder.attrib.get("path", "")).resolve() != vault.resolve():
@@ -94,6 +118,6 @@ def validate_config(path: Path, vault: Path, device_ids: Iterable[str] = ()) -> 
         raise ValueError("Syncthing 公共发现、Relay 和 NAT 必须关闭")
     configured = {node.attrib.get("id") for node in folder.findall("device")}
     expected = {value.strip() for value in device_ids if value and value.strip()}
-    if expected and not expected.issubset(configured):
+    if expected and (not expected.issubset(configured) or not expected.issubset(root_devices)):
         raise ValueError("Syncthing 配置缺少指定客户端设备")
     return {"folder": FOLDER_ID, "path": str(vault.resolve()), "devices": len(configured)}
